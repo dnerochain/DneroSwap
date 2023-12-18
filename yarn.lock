@@ -6047,10 +6047,10 @@
     react "^18.2.0"
     react-dom "^18.2.0"
 
-"@uniswap/default-token-list@^11.2.0", "@uniswap/default-token-list@^11.8.0":
-  version "11.8.0"
-  resolved "https://registry.yarnpkg.com/@uniswap/default-token-list/-/default-token-list-11.8.0.tgz#a430e709a450469fb811f5b4984c00321b82e12c"
-  integrity sha512-2U0sRaxrEZCyAr0e2pRueESJDtLl2oR7Zu7GeIaqqN6ocs7Ew2pncnrnrdFvMLSElVNbDS0PyCSPCeE6cj6mwg==
+"@uniswap/default-token-list@^11.11.0", "@uniswap/default-token-list@^11.2.0":
+  version "11.11.0"
+  resolved "https://registry.yarnpkg.com/@uniswap/default-token-list/-/default-token-list-11.11.0.tgz#270c3cd817275b0c46258bc6a4630207fa9e75e4"
+  integrity sha512-UngPIUcycnKUkFUskRe2SLxAz5Gt/5i3G8XW8m9NJWTXAzfDMJD6wvOsk+gXnSfSBwpGlVPgiJy5f5FRWloTUA==
 
 "@uniswap/eslint-config@^1.2.0":
   version "1.2.0"
@@ -8737,7 +8737,7 @@ cjs-module-lexer@^1.0.0:
   resolved "https://registry.yarnpkg.com/cjs-module-lexer/-/cjs-module-lexer-1.2.2.tgz#9f84ba3244a512f3a54e5277e8eef4c489864e40"
   integrity sha512-cOU9usZw8/dXIXKtwa8pM0OTJQuJkxMN6w30csNRUerHfeQ5R6U3kkU/FtJeIf3M202OHfY2U8ccInBG7/xogA==
 
-classic-level@^1.2.0:
+classic-level@^1.2.0, classic-level@^1.3.0:
   version "1.3.0"
   resolved "https://registry.yarnpkg.com/classic-level/-/classic-level-1.3.0.tgz#5e36680e01dc6b271775c093f2150844c5edd5c8"
   integrity sha512-iwFAJQYtqRTRM0F6L8h4JCt00ZSGdOyqh7yVrhhjrOpFhmBjNlRUey64MCiyo6UmQHMJ+No3c81nujPv+n9yrg==
