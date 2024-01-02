@@ -1,0 +1,27 @@
+{
+  "name": "routing-api",
+  "version": "0.3.18",
+  "dependencies": {
+    "@dneroswap/chains": "workspace:*",
+    "@dneroswap/farms": "workspace:*",
+    "@dneroswap/sdk": "workspace:*",
+    "@dneroswap/smart-router": "workspace:*",
+    "@dneroswap/v3-sdk": "workspace:*",
+    "@dneroswap/worker-utils": "workspace:*",
+    "graphql-request": "5.0.0",
+    "itty-router": "^2.6.1",
+    "itty-router-extras": "^0.4.2",
+    "viem": "1.19.11"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^3.10.0",
+    "@dneroswap/tsconfig": "workspace:*",
+    "@types/itty-router-extras": "^0.4.0",
+    "wrangler": "2.20.1"
+  },
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler publish"
+  }
+}
