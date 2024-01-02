@@ -1,0 +1,33 @@
+{
+  "name": "@dneroswap/gauges",
+  "version": "0.0.2",
+  "private": true,
+  "scripts": {
+    "dev": "tsup --watch",
+    "build": "tsup",
+    "test": "vitest --run --globals"
+  },
+  "main": "dist/index.js",
+  "typings": "dist/index.d.ts",
+  "module": "dist/index.mjs",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "devDependencies": {
+    "tsup": "^6.7.0"
+  },
+  "dependencies": {
+    "@dneroswap/chains": "workspace:^",
+    "@dneroswap/tokens": "workspace:^",
+    "@dneroswap/v3-sdk": "workspace:^",
+    "viem": "1.19.11"
+  }
+}

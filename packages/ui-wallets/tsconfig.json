@@ -1,0 +1,10 @@
+{
+  "extends": "@dneroswap/tsconfig/react-library",
+  "compilerOptions": {
+    "baseUrl": "./",
+    "paths": {
+      "@dneroswap/uikit": ["../../packages/uikit/src/index.ts"],
+      "@dneroswap/uikit/*": ["../../packages/uikit/src/*"]
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "@dneroswap/farms",
+  "version": "1.0.29",
+  "sideEffects": false,
+  "private": true,
+  "scripts": {
+    "build": "npx tsx scripts/build.ts",
+    "update:snapshot": "vitest -u",
+    "test": "vitest --run"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.14.168",
+    "tsx": "^3.12.1",
+    "wrangler": "2.20.1"
+  },
+  "dependencies": {
+    "@dneroswap/sdk": "workspace:*",
+    "@dneroswap/swap-sdk-core": "workspace:*",
+    "@dneroswap/token-lists": "workspace:*",
+    "@dneroswap/tokens": "workspace:*",
+    "@dneroswap/utils": "workspace:*",
+    "@dneroswap/v3-sdk": "workspace:*",
+    "@dneroswap/chains": "workspace:*",
+    "bignumber.js": "^9.0.0",
+    "dayjs": "^1.11.10",
+    "lodash": "^4.17.21",
+    "viem": "1.19.11"
+  }
+}

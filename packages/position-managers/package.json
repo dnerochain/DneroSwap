@@ -1,0 +1,26 @@
+{
+  "name": "@dneroswap/position-managers",
+  "version": "0.1.2",
+  "sideEffects": false,
+  "private": true,
+  "scripts": {
+    "test": "vitest --run"
+  },
+  "type": "module",
+  "dependencies": {
+    "@dneroswap/sdk": "workspace:*",
+    "@dneroswap/v3-sdk": "workspace:*",
+    "@dneroswap/token-lists": "workspace:*",
+    "@dneroswap/tokens": "workspace:*",
+    "@dneroswap/chains": "workspace:*",
+    "bignumber.js": "^9.0.0",
+    "lodash": "^4.17.21",
+    "viem": "1.19.11",
+    "wagmi": "1.4.7"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.14.168",
+    "@dneroswap/tsconfig": "workspace:*",
+    "@dneroswap/utils": "workspace:*"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "@dneroswap/tsconfig",
+  "version": "0.0.0",
+  "license": "MIT",
+  "main": "index.js",
+  "private": true
+}

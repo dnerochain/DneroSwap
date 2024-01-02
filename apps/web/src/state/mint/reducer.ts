@@ -1,26 +1,22 @@
+import { createContext, useContext } from 'react'
 import { createReducer } from '@reduxjs/toolkit'
-
+import { atomWithReducer } from 'jotai/utils'
+import { useAtomValue, useSetAtom } from 'jotai'
 import { Field, resetMintState, typeInput } from './actions'
 
 export interface MintState {
   readonly independentField: Field
   readonly typedValue: string
   readonly otherTypedValue: string // for the case when there's no liquidity
-  readonly startPriceTypedValue: string // for the case when there's no liquidity
-  readonly leftRangeTypedValue: string
-  readonly rightRangeTypedValue: string
 }
 
-export const initialState: MintState = {
+const initialState: MintState = {
   independentField: Field.CURRENCY_A,
   typedValue: '',
   otherTypedValue: '',
-  startPriceTypedValue: '',
-  leftRangeTypedValue: '',
-  rightRangeTypedValue: '',
 }
 
-export default createReducer<MintState>(initialState, (builder) =>
+export const reducer = createReducer<MintState>(initialState, (builder) =>
   builder
     .addCase(resetMintState, () => initialState)
     .addCase(typeInput, (state, { payload: { field, typedValue, noLiquidity } }) => {
@@ -34,21 +30,37 @@ export default createReducer<MintState>(initialState, (builder) =>
           }
         }
         // they're typing into a new field, store the other value
-        else {
-          return {
-            ...state,
-            independentField: field,
-            typedValue,
-            otherTypedValue: state.typedValue,
-          }
-        }
-      } else {
+
         return {
           ...state,
           independentField: field,
           typedValue,
-          otherTypedValue: '',
+          otherTypedValue: state.typedValue,
         }
       }
-    })
+      return {
+        ...state,
+        independentField: field,
+        typedValue,
+        otherTypedValue: '',
+      }
+    }),
 )
+
+export const createFormAtom = () => atomWithReducer(initialState, reducer)
+
+const AddLiquidityV2AtomContext = createContext({
+  formAtom: createFormAtom(),
+})
+
+export const AddLiquidityV2AtomProvider = AddLiquidityV2AtomContext.Provider
+
+export function useAddLiquidityV2FormState() {
+  const ctx = useContext(AddLiquidityV2AtomContext)
+  return useAtomValue(ctx.formAtom)
+}
+
+export function useAddLiquidityV2FormDispatch() {
+  const ctx = useContext(AddLiquidityV2AtomContext)
+  return useSetAtom(ctx.formAtom)
+}
