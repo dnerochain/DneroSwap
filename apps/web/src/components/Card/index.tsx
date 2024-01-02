@@ -1,45 +1,55 @@
-import { Box } from 'rebass/styled-components'
-import styled from 'styled-components'
+import { Box, BoxProps } from '@dneroswap/uikit'
+import { styled } from 'styled-components'
 
-const Card = styled(Box)<{ width?: string; padding?: string; border?: string; $borderRadius?: string }>`
+export interface LightCardProps extends BoxProps {
+  width?: string
+  padding?: string | string[]
+  border?: string
+  borderRadius?: string
+}
+
+const Card = styled(Box)<LightCardProps>`
   width: ${({ width }) => width ?? '100%'};
-  padding: ${({ padding }) => padding ?? '1rem'};
-  border-radius: ${({ $borderRadius }) => $borderRadius ?? '16px'};
+  padding: ${({ padding }) => padding ?? '1.25rem'};
   border: ${({ border }) => border};
+  border-radius: ${({ borderRadius }) => borderRadius ?? '16px'};
+  background-color: ${({ theme }) => theme.colors.background};
 `
+
 export default Card
 
 export const LightCard = styled(Card)`
-  border: 1px solid ${({ theme }) => theme.surface3};
-  background-color: ${({ theme }) => theme.surface2};
+  border: 1px solid ${({ theme }) => theme.colors.cardBorder};
+  background-color: ${({ theme }) => theme.colors.backgroundAlt};
 `
 
-export const GrayCard = styled(Card)`
-  background-color: ${({ theme }) => theme.surface2};
+export const LightGreyCard = styled(Card)`
+  border: 1px solid ${({ theme }) => theme.colors.cardBorder};
+  background-color: ${({ theme }) => theme.colors.background};
 `
 
-export const DarkGrayCard = styled(Card)`
-  background-color: ${({ theme }) => theme.surface3};
+export const CryptoCard = styled(Card)<{ isClicked: boolean; isDisabled: boolean; elementHeight: number }>`
+  border: 1px solid ${({ theme }) => theme.colors.cardBorder};
+  background-color: ${({ theme, isClicked }) => (isClicked ? theme.colors.input : theme.colors.background)};
+  transition: max-height 0.3s ease-in-out, background-color 0.1s ease-in-out;
+  max-height: ${({ isClicked, elementHeight }) => (isClicked ? `${elementHeight}px` : `105px`)};
+  overflow: hidden;
+  &:hover {
+    cursor: ${({ isDisabled }) => (isDisabled ? 'not-allowed' : 'pointer')};
+    pointer-events: ${({ isDisabled }) => (isDisabled ? 'none' : 'auto')};
+  }
 `
 
-export const DarkCard = styled(Card)`
-  background-color: ${({ theme }) => theme.surface1};
-  border: 1px solid ${({ theme }) => theme.surface3};
+export const GreyCard = styled(Card)`
+  background-color: ${({ theme }) => theme.colors.dropdown};
 `
 
-export const OutlineCard = styled(Card)`
-  border: 1px solid ${({ theme }) => theme.surface3};
-  background-color: ${({ theme }) => theme.surface2};
+export const LightTertiaryCard = styled(Card)<{ active: boolean }>`
+  border: 1px solid ${({ theme, active }) => (active ? 'none' : theme.colors.cardBorder)};
+  background-color: ${({ theme }) => theme.colors.tertiary};
 `
 
-export const YellowCard = styled(Card)`
-  background-color: rgba(243, 132, 30, 0.05);
-  color: ${({ theme }) => theme.deprecated_yellow3};
-  font-weight: 535;
-`
-
-export const BlueCard = styled(Card)`
-  background-color: ${({ theme }) => theme.accent2};
-  color: ${({ theme }) => theme.accent1};
-  border-radius: 12px;
+export const DisableCard = styled(Card)`
+  border: 1px solid ${({ theme }) => theme.colors.cardBorder};
+  background-color: ${({ theme }) => theme.colors.disabled};
 `

@@ -1,130 +1,89 @@
-import { FunctionComponent, PropsWithChildren, useRef } from 'react'
-import { Link } from 'react-router-dom'
-import styled, { css } from 'styled-components'
-import { ExternalLink } from 'theme/components'
+import { languageList, useTranslation } from '@dneroswap/localization'
+import { Menu as UikitMenu, footerLinks, useModal } from '@dneroswap/uikit'
+import { BIG_ZERO } from '@dneroswap/utils/bigNumber'
+import { usePhishingBanner } from '@dneroswap/utils/user'
+import { NextLinkFromReactRouter } from '@dneroswap/widgets-internal'
+import USCitizenConfirmModal from 'components/Modal/USCitizenConfirmModal'
+import { NetworkSwitcher } from 'components/NetworkSwitcher'
+import PhishingWarningBanner from 'components/PhishingWarningBanner'
+import { useActiveChainId } from 'hooks/useActiveChainId'
+import { useWDneroPrice } from 'hooks/useWDneroPrice'
+import useTheme from 'hooks/useTheme'
+import { IdType } from 'hooks/useUserIsUsCitizenAcknowledgement'
+import { useWebNotifications } from 'hooks/useWebNotifications'
+import { useRouter } from 'next/router'
+import { useMemo } from 'react'
+import Notifications from 'views/Notifications'
+import GlobalSettings from './GlobalSettings'
+import { SettingsMode } from './GlobalSettings/types'
+import UserMenu from './UserMenu'
+import { useMenuItems } from './hooks/useMenuItems'
+import { getActiveMenuItem, getActiveSubMenuItem } from './utils'
 
-import { ReactComponent as MenuIcon } from '../../assets/images/menu.svg'
-import { useOnClickOutside } from '../../hooks/useOnClickOutside'
-import { useModalIsOpen, useToggleModal } from '../../state/application/hooks'
-import { ApplicationModal } from '../../state/application/reducer'
-
-export enum FlyoutAlignment {
-  LEFT = 'LEFT',
-  RIGHT = 'RIGHT',
+const LinkComponent = (linkProps) => {
+  return <NextLinkFromReactRouter to={linkProps.href} {...linkProps} prefetch={false} />
 }
 
-const StyledMenuIcon = styled(MenuIcon)`
-  path {
-    stroke: ${({ theme }) => theme.neutral1};
-  }
-`
+const Menu = (props) => {
+  const { enabled } = useWebNotifications()
+  const { chainId } = useActiveChainId()
+  const { isDark, setTheme } = useTheme()
+  const wdneroPrice = useWDneroPrice()
+  const { currentLanguage, setLanguage, t } = useTranslation()
+  const { pathname } = useRouter()
 
-const StyledMenu = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  position: relative;
-  border: none;
-  text-align: left;
-`
+  const [onUSCitizenModalPresent] = useModal(
+    <USCitizenConfirmModal title={t('DneroSwap Perpetuals')} id={IdType.PERPETUALS} />,
+    false,
+    false,
+    'usCitizenConfirmModal',
+  )
+  const [showPhishingWarningBanner] = usePhishingBanner()
 
-const MenuFlyout = styled.span<{ flyoutAlignment?: FlyoutAlignment }>`
-  min-width: 196px;
-  max-height: 350px;
-  overflow: auto;
-  background-color: ${({ theme }) => theme.surface1};
-  box-shadow: 0px 0px 1px rgba(0, 0, 0, 0.01), 0px 4px 8px rgba(0, 0, 0, 0.04), 0px 16px 24px rgba(0, 0, 0, 0.04),
-    0px 24px 32px rgba(0, 0, 0, 0.01);
-  border: 1px solid ${({ theme }) => theme.surface1};
-  border-radius: 12px;
-  padding: 0.5rem;
-  display: flex;
-  flex-direction: column;
-  font-size: 16px;
-  position: absolute;
-  top: 3rem;
-  z-index: 100;
+  const menuItems = useMenuItems(onUSCitizenModalPresent)
 
-  ${({ flyoutAlignment = FlyoutAlignment.RIGHT }) =>
-    flyoutAlignment === FlyoutAlignment.RIGHT
-      ? css`
-          right: 0rem;
-        `
-      : css`
-          left: 0rem;
-        `};
-`
+  const activeMenuItem = getActiveMenuItem({ menuConfig: menuItems, pathname })
+  const activeSubMenuItem = getActiveSubMenuItem({ menuItem: activeMenuItem, pathname })
 
-const MenuItem = styled(ExternalLink)`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  align-items: center;
-  padding: 0.5rem 0.5rem;
-  justify-content: space-between;
-  color: ${({ theme }) => theme.neutral2};
-  :hover {
-    color: ${({ theme }) => theme.neutral1};
-    cursor: pointer;
-    text-decoration: none;
-  }
-`
+  const toggleTheme = useMemo(() => {
+    return () => setTheme(isDark ? 'light' : 'dark')
+  }, [setTheme, isDark])
 
-const InternalMenuItem = styled(Link)`
-  flex: 1;
-  padding: 0.5rem 0.5rem;
-  color: ${({ theme }) => theme.neutral2};
-  width: max-content;
-  text-decoration: none;
-  :hover {
-    color: ${({ theme }) => theme.neutral1};
-    cursor: pointer;
-    text-decoration: none;
-  }
-  > svg {
-    margin-right: 8px;
-  }
-`
+  const getFooterLinks = useMemo(() => {
+    return footerLinks(t)
+  }, [t])
 
-interface MenuProps {
-  flyoutAlignment?: FlyoutAlignment
-  ToggleUI?: FunctionComponent<PropsWithChildren<unknown>>
-  menuItems: {
-    content: any
-    link: string
-    external: boolean
-  }[]
-}
-
-const ExternalMenuItem = styled(MenuItem)`
-  width: max-content;
-  text-decoration: none;
-`
-
-export const Menu = ({ flyoutAlignment = FlyoutAlignment.RIGHT, ToggleUI, menuItems, ...rest }: MenuProps) => {
-  const node = useRef<HTMLDivElement>()
-  const open = useModalIsOpen(ApplicationModal.POOL_OVERVIEW_OPTIONS)
-  const toggle = useToggleModal(ApplicationModal.POOL_OVERVIEW_OPTIONS)
-  useOnClickOutside(node, open ? toggle : undefined)
-  const ToggleElement = ToggleUI || StyledMenuIcon
   return (
-    <StyledMenu ref={node as any} {...rest}>
-      <ToggleElement onClick={toggle} />
-      {open && (
-        <MenuFlyout flyoutAlignment={flyoutAlignment}>
-          {menuItems.map(({ content, link, external }, i) =>
-            external ? (
-              <ExternalMenuItem href={link} key={i}>
-                {content}
-              </ExternalMenuItem>
-            ) : (
-              <InternalMenuItem to={link} key={i}>
-                {content}
-              </InternalMenuItem>
-            )
-          )}
-        </MenuFlyout>
-      )}
-    </StyledMenu>
+    <>
+      <UikitMenu
+        linkComponent={LinkComponent}
+        rightSide={
+          <>
+            <GlobalSettings mode={SettingsMode.GLOBAL} />
+            {enabled && <Notifications />}
+            <NetworkSwitcher />
+            <UserMenu />
+          </>
+        }
+        chainId={chainId}
+        banner={showPhishingWarningBanner && typeof window !== 'undefined' && <PhishingWarningBanner />}
+        isDark={isDark}
+        toggleTheme={toggleTheme}
+        currentLang={currentLanguage.code}
+        langs={languageList}
+        setLang={setLanguage}
+        wdneroPriceUsd={wdneroPrice.eq(BIG_ZERO) ? undefined : wdneroPrice}
+        links={menuItems}
+        subLinks={activeMenuItem?.hideSubNav || activeSubMenuItem?.hideSubNav ? [] : activeMenuItem?.items}
+        footerLinks={getFooterLinks}
+        activeItem={activeMenuItem?.href}
+        activeSubItem={activeSubMenuItem?.href}
+        buyWDneroLabel={t('Buy WDNERO')}
+        buyWDneroLink="https://pancakeswap.finance/swap?outputCurrency=0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82&chainId=56"
+        {...props}
+      />
+    </>
   )
 }
+
+export default Menu

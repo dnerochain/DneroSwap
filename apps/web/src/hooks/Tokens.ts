@@ -1,197 +1,209 @@
-import { ChainId, Currency, Token } from '@uniswap/sdk-core'
-import { useWeb3React } from '@web3-react/core'
-import { getChainInfo } from 'constants/chainInfo'
-import { DEFAULT_INACTIVE_LIST_URLS, DEFAULT_LIST_OF_LISTS } from 'constants/lists'
-import { useCurrencyFromMap, useTokenFromMapOrNetwork } from 'lib/hooks/useCurrency'
-import { getTokenFilter } from 'lib/hooks/useTokenList/filtering'
-import { TokenAddressMap } from 'lib/hooks/useTokenList/utils'
+/* eslint-disable no-param-reassign */
+import { ERC20Token } from '@dneroswap/sdk'
+import { ChainId } from '@dneroswap/chains'
+import { Currency, NativeCurrency } from '@dneroswap/swap-sdk-core'
+
+import { TokenAddressMap } from '@dneroswap/token-lists'
+import { GELATO_NATIVE } from 'config/constants'
+import { useAtomValue } from 'jotai'
 import { useMemo } from 'react'
-import { useAppSelector } from 'state/hooks'
-import { isL2ChainId } from 'utils/chains'
+import { useToken as useToken_ } from 'wagmi'
+import {
+  combinedCurrenciesMapFromActiveUrlsAtom,
+  combinedTokenMapFromActiveUrlsAtom,
+  combinedTokenMapFromOfficialsUrlsAtom,
+  useUnsupportedTokenList,
+  useWarningTokenList,
+} from 'state/lists/hooks'
+import { safeGetAddress } from 'utils'
+import useUserAddedTokens from '../state/user/hooks/useUserAddedTokens'
+import { useActiveChainId } from './useActiveChainId'
+import useNativeCurrency from './useNativeCurrency'
 
-import { useAllLists, useCombinedActiveList, useCombinedTokenMapFromUrls } from '../state/lists/hooks'
-import { TokenFromList } from '../state/lists/tokenFromList'
-import { deserializeToken, useUserAddedTokens } from '../state/user/hooks'
-import { useUnsupportedTokenList } from './../state/lists/hooks'
+const mapWithoutUrls = (tokenMap?: TokenAddressMap<ChainId>, chainId?: number) => {
+  if (!tokenMap || !chainId) return {}
+  return Object.keys(tokenMap[chainId] || {}).reduce<{ [address: string]: ERC20Token }>((newMap, address) => {
+    const checksummedAddress = safeGetAddress(address)
 
-type Maybe<T> = T | null | undefined
-
-// reduce token map into standard address <-> Token mapping, optionally include user added tokens
-function useTokensFromMap(tokenMap: TokenAddressMap, chainId: Maybe<ChainId>): { [address: string]: Token } {
-  return useMemo(() => {
-    if (!chainId) return {}
-
-    // reduce to just tokens
-    return Object.keys(tokenMap[chainId] ?? {}).reduce<{ [address: string]: Token }>((newMap, address) => {
-      newMap[address] = tokenMap[chainId][address].token
-      return newMap
-    }, {})
-  }, [chainId, tokenMap])
-}
-
-// TODO(WEB-2347): after disallowing unchecked index access, refactor ChainTokenMap to not use ?'s
-export type ChainTokenMap = { [chainId in number]?: { [address in string]?: Token } }
-/** Returns tokens from all token lists on all chains, combined with user added tokens */
-export function useAllTokensMultichain(): ChainTokenMap {
-  const allTokensFromLists = useCombinedTokenMapFromUrls(DEFAULT_LIST_OF_LISTS)
-  const userAddedTokensMap = useAppSelector(({ user: { tokens } }) => tokens)
-
-  return useMemo(() => {
-    const chainTokenMap: ChainTokenMap = {}
-
-    if (userAddedTokensMap) {
-      Object.keys(userAddedTokensMap).forEach((key) => {
-        const chainId = Number(key)
-        const tokenMap = {} as { [address in string]?: Token }
-        Object.values(userAddedTokensMap[chainId]).forEach((serializedToken) => {
-          tokenMap[serializedToken.address] = deserializeToken(serializedToken)
-        })
-        chainTokenMap[chainId] = tokenMap
-      })
+    if (checksummedAddress && !newMap[checksummedAddress]) {
+      newMap[checksummedAddress] = tokenMap[chainId][address].token
     }
 
-    Object.keys(allTokensFromLists).forEach((key) => {
-      const chainId = Number(key)
-      const tokenMap = chainTokenMap[chainId] ?? {}
-      Object.values(allTokensFromLists[chainId]).forEach(({ token }) => {
-        tokenMap[token.address] = token
-      })
-      chainTokenMap[chainId] = tokenMap
-    })
-
-    return chainTokenMap
-  }, [allTokensFromLists, userAddedTokensMap])
+    return newMap
+  }, {})
 }
 
-/** Returns all tokens from the default list + user added tokens */
-export function useDefaultActiveTokens(chainId: Maybe<ChainId>): { [address: string]: Token } {
-  const defaultListTokens = useCombinedActiveList()
-  const tokensFromMap = useTokensFromMap(defaultListTokens, chainId)
+const mapWithoutUrlsBySymbol = (tokenMap?: TokenAddressMap<ChainId>, chainId?: number) => {
+  if (!tokenMap || !chainId) return {}
+  return Object.keys(tokenMap[chainId] || {}).reduce<{ [symbol: string]: ERC20Token }>((newMap, symbol) => {
+    newMap[symbol] = tokenMap[chainId][symbol].token
+
+    return newMap
+  }, {})
+}
+
+/**
+ * Returns all tokens that are from active urls and user added tokens
+ */
+export function useAllTokens(): { [address: string]: ERC20Token } {
+  const { chainId } = useActiveChainId()
+  const tokenMap = useAtomValue(combinedTokenMapFromActiveUrlsAtom)
   const userAddedTokens = useUserAddedTokens()
   return useMemo(() => {
     return (
       userAddedTokens
         // reduce into all ALL_TOKENS filtered by the current chain
-        .reduce<{ [address: string]: Token }>(
-          (tokenMap, token) => {
-            tokenMap[token.address] = token
-            return tokenMap
+        .reduce<{ [address: string]: ERC20Token }>(
+          (tokenMap_, token) => {
+            const checksummedAddress = safeGetAddress(token.address)
+
+            if (checksummedAddress) {
+              tokenMap_[checksummedAddress] = token
+            }
+
+            return tokenMap_
           },
           // must make a copy because reduce modifies the map, and we do not
           // want to make a copy in every iteration
-          { ...tokensFromMap }
+          mapWithoutUrls(tokenMap, chainId),
         )
     )
-  }, [tokensFromMap, userAddedTokens])
+  }, [userAddedTokens, tokenMap, chainId])
 }
 
-type BridgeInfo = Record<
-  ChainId,
-  {
-    tokenAddress: string
-    originBridgeAddress: string
-    destBridgeAddress: string
-  }
->
-
-export function useUnsupportedTokens(): { [address: string]: Token } {
-  const { chainId } = useWeb3React()
-  const listsByUrl = useAllLists()
-  const unsupportedTokensMap = useUnsupportedTokenList()
-  const unsupportedTokens = useTokensFromMap(unsupportedTokensMap, chainId)
-
-  // checks the default L2 lists to see if `bridgeInfo` has an L1 address value that is unsupported
-  const l2InferredBlockedTokens: typeof unsupportedTokens = useMemo(() => {
-    if (!chainId || !isL2ChainId(chainId)) {
-      return {}
-    }
-
-    if (!listsByUrl) {
-      return {}
-    }
-
-    const listUrl = getChainInfo(chainId).defaultListUrl
-
-    const list = listsByUrl[listUrl]?.current
-    if (!list) {
-      return {}
-    }
-
-    const unsupportedSet = new Set(Object.keys(unsupportedTokens))
-
-    return list.tokens.reduce((acc, tokenInfo) => {
-      const bridgeInfo = tokenInfo.extensions?.bridgeInfo as unknown as BridgeInfo
-      if (
-        bridgeInfo &&
-        bridgeInfo[ChainId.MAINNET] &&
-        bridgeInfo[ChainId.MAINNET].tokenAddress &&
-        unsupportedSet.has(bridgeInfo[ChainId.MAINNET].tokenAddress)
-      ) {
-        const address = bridgeInfo[ChainId.MAINNET].tokenAddress
-        // don't rely on decimals--it's possible that a token could be bridged w/ different decimals on the L2
-        return { ...acc, [address]: new Token(ChainId.MAINNET, address, tokenInfo.decimals) }
-      }
-      return acc
-    }, {})
-  }, [chainId, listsByUrl, unsupportedTokens])
-
-  return { ...unsupportedTokens, ...l2InferredBlockedTokens }
-}
-
-export function useSearchInactiveTokenLists(search: string | undefined, minResults = 10): TokenFromList[] {
-  const lists = useAllLists()
-  const inactiveUrls = DEFAULT_INACTIVE_LIST_URLS
-  const { chainId } = useWeb3React()
-  const activeTokens = useDefaultActiveTokens(chainId)
+export function useAllOnRampTokens(): { [address: string]: Currency } {
+  const { chainId } = useActiveChainId()
+  const tokenMap = useAtomValue(combinedCurrenciesMapFromActiveUrlsAtom)
   return useMemo(() => {
-    if (!search || search.trim().length === 0) return []
-    const tokenFilter = getTokenFilter(search)
-    const result: TokenFromList[] = []
-    const addressSet: { [address: string]: true } = {}
-    for (const url of inactiveUrls) {
-      const list = lists[url]?.current
-      if (!list) continue
-      for (const tokenInfo of list.tokens) {
-        if (tokenInfo.chainId === chainId && tokenFilter(tokenInfo)) {
-          try {
-            const wrapped: TokenFromList = new TokenFromList(tokenInfo, list)
-            if (!(wrapped.address in activeTokens) && !addressSet[wrapped.address]) {
-              addressSet[wrapped.address] = true
-              result.push(wrapped)
-              if (result.length >= minResults) return result
+    return mapWithoutUrlsBySymbol(tokenMap, chainId)
+  }, [tokenMap, chainId])
+}
+
+/**
+ * Returns all tokens that are from officials token list and user added tokens
+ */
+export function useOfficialsAndUserAddedTokens(): { [address: string]: ERC20Token } {
+  const { chainId } = useActiveChainId()
+  const tokenMap = useAtomValue(combinedTokenMapFromOfficialsUrlsAtom)
+
+  const userAddedTokens = useUserAddedTokens()
+  return useMemo(() => {
+    return (
+      userAddedTokens
+        // reduce into all ALL_TOKENS filtered by the current chain
+        .reduce<{ [address: string]: ERC20Token }>(
+          (tokenMap_, token) => {
+            const checksummedAddress = safeGetAddress(token.address)
+
+            if (checksummedAddress) {
+              tokenMap_[checksummedAddress] = token
             }
-          } catch {
-            continue
-          }
-        }
-      }
-    }
-    return result
-  }, [activeTokens, chainId, inactiveUrls, lists, minResults, search])
+
+            return tokenMap_
+          },
+          // must make a copy because reduce modifies the map, and we do not
+          // want to make a copy in every iteration
+          mapWithoutUrls(tokenMap, chainId),
+        )
+    )
+  }, [userAddedTokens, tokenMap, chainId])
+}
+
+export function useUnsupportedTokens(): { [address: string]: ERC20Token } {
+  const { chainId } = useActiveChainId()
+  const unsupportedTokensMap = useUnsupportedTokenList()
+  return useMemo(() => mapWithoutUrls(unsupportedTokensMap, chainId), [unsupportedTokensMap, chainId])
+}
+
+export function useWarningTokens(): { [address: string]: ERC20Token } {
+  const warningTokensMap = useWarningTokenList()
+  const { chainId } = useActiveChainId()
+  return useMemo(() => mapWithoutUrls(warningTokensMap, chainId), [warningTokensMap, chainId])
+}
+
+export function useIsTokenActive(token: ERC20Token | undefined | null): boolean {
+  const activeTokens = useAllTokens()
+
+  if (!activeTokens || !token) {
+    return false
+  }
+
+  const tokenAddress = safeGetAddress(token.address)
+
+  return tokenAddress && !!activeTokens[tokenAddress]
 }
 
 // Check if currency is included in custom list from user storage
 export function useIsUserAddedToken(currency: Currency | undefined | null): boolean {
   const userAddedTokens = useUserAddedTokens()
 
-  if (!currency) {
+  if (!currency?.equals) {
     return false
   }
 
-  return !!userAddedTokens.find((token) => currency.equals(token))
+  return !!userAddedTokens.find((token) => currency?.equals(token))
 }
 
 // undefined if invalid or does not exist
-// null if loading or null was passed
+// null if loading
 // otherwise returns the token
-export function useToken(tokenAddress?: string | null): Token | null | undefined {
-  const { chainId } = useWeb3React()
-  const tokens = useDefaultActiveTokens(chainId)
-  return useTokenFromMapOrNetwork(tokens, tokenAddress)
+export function useToken(tokenAddress?: string): ERC20Token | undefined | null {
+  const { chainId } = useActiveChainId()
+  const tokens = useAllTokens()
+
+  const address = safeGetAddress(tokenAddress)
+
+  const token: ERC20Token | undefined = address ? tokens[address] : undefined
+
+  const { data, isLoading } = useToken_({
+    address: address || undefined,
+    chainId,
+    enabled: Boolean(!!address && !token),
+    // consider longer stale time
+  })
+
+  return useMemo(() => {
+    if (token) return token
+    if (!chainId || !address) return undefined
+    if (isLoading) return null
+    if (data) {
+      return new ERC20Token(
+        chainId,
+        data.address,
+        data.decimals,
+        data.symbol ?? 'UNKNOWN',
+        data.name ?? 'Unknown Token',
+      )
+    }
+    return undefined
+  }, [token, chainId, address, isLoading, data])
 }
 
-export function useCurrency(currencyId: Maybe<string>, chainId?: ChainId): Currency | undefined {
-  const { chainId: connectedChainId } = useWeb3React()
-  const tokens = useDefaultActiveTokens(chainId ?? connectedChainId)
-  return useCurrencyFromMap(tokens, chainId ?? connectedChainId, currencyId)
+export function useOnRampToken(tokenAddress?: string): Currency | undefined {
+  const { chainId } = useActiveChainId()
+  const tokens = useAllOnRampTokens()
+  const address = safeGetAddress(tokenAddress)
+  const token = tokens[tokenAddress]
+
+  return useMemo(() => {
+    if (token) return token
+    if (!chainId || !address) return undefined
+    return undefined
+  }, [token, chainId, address])
+}
+
+export function useCurrency(currencyId: string | undefined): Currency | ERC20Token | null | undefined {
+  const native = useNativeCurrency()
+  const isNative =
+    currencyId?.toUpperCase() === native.symbol?.toUpperCase() || currencyId?.toLowerCase() === GELATO_NATIVE
+  const token = useToken(isNative ? undefined : currencyId)
+  return isNative ? native : token
+}
+
+export function useOnRampCurrency(currencyId: string | undefined): NativeCurrency | Currency | null | undefined {
+  const native = useNativeCurrency()
+  const isNative =
+    currencyId?.toUpperCase() === native.symbol?.toUpperCase() || currencyId?.toLowerCase() === GELATO_NATIVE
+  const token = useOnRampToken(currencyId)
+  return isNative ? native : token
 }

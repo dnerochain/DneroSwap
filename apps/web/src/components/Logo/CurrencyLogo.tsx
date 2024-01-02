@@ -1,21 +1,63 @@
-import { Currency } from '@uniswap/sdk-core'
-import { TokenInfo } from '@uniswap/token-lists'
+import { Currency } from '@dneroswap/sdk'
+import { ChainId } from '@dneroswap/chains'
+import { BinanceIcon, TokenLogo } from '@dneroswap/uikit'
+import { useMemo } from 'react'
+import { WrappedTokenInfo } from '@dneroswap/token-lists'
+import { styled } from 'styled-components'
+import { ASSET_CDN } from 'config/constants/endpoints'
+import { useHttpLocations } from '@dneroswap/hooks'
+import getTokenLogoURL from '../../utils/getTokenLogoURL'
 
-import AssetLogo, { AssetLogoBaseProps } from './AssetLogo'
+const StyledLogo = styled(TokenLogo)<{ size: string }>`
+  width: ${({ size }) => size};
+  height: ${({ size }) => size};
+  border-radius: 50%;
+`
 
-export default function CurrencyLogo(
-  props: AssetLogoBaseProps & {
-    currency?: Currency | null
-  }
-) {
+interface LogoProps {
+  currency?: Currency
+  size?: string
+  style?: React.CSSProperties
+}
+
+export function FiatLogo({ currency, size = '24px', style }: LogoProps) {
   return (
-    <AssetLogo
-      isNative={props.currency?.isNative}
-      chainId={props.currency?.chainId}
-      address={props.currency?.wrapped.address}
-      symbol={props.symbol ?? props.currency?.symbol}
-      backupImg={(props.currency as TokenInfo)?.logoURI}
-      {...props}
+    <StyledLogo
+      size={size}
+      srcs={[`/images/currencies/${currency?.symbol?.toLowerCase()}.png`]}
+      width={size}
+      style={style}
     />
   )
+}
+
+export default function CurrencyLogo({ currency, size = '24px', style }: LogoProps) {
+  const uriLocations = useHttpLocations(currency instanceof WrappedTokenInfo ? currency.logoURI : undefined)
+
+  const srcs: string[] = useMemo(() => {
+    if (currency?.isNative) return []
+
+    if (currency?.isToken) {
+      const tokenLogoURL = getTokenLogoURL(currency)
+
+      if (currency instanceof WrappedTokenInfo) {
+        if (!tokenLogoURL) return [...uriLocations]
+        return [...uriLocations, tokenLogoURL]
+      }
+      if (!tokenLogoURL) return []
+      return [tokenLogoURL]
+    }
+    return []
+  }, [currency, uriLocations])
+
+  if (currency?.isNative) {
+    if (currency.chainId === ChainId.DNERO) {
+      return <BinanceIcon width={size} style={style} />
+    }
+    return (
+      <StyledLogo size={size} srcs={[`${ASSET_CDN}/web/native/${currency.chainId}.png`]} width={size} style={style} />
+    )
+  }
+
+  return <StyledLogo size={size} srcs={srcs} alt={`${currency?.symbol ?? 'token'} logo`} style={style} />
 }

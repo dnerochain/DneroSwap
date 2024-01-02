@@ -1,349 +1,304 @@
-import { Trans } from '@lingui/macro'
-import { BrowserEvent, InterfaceElementName, SwapEventName } from '@uniswap/analytics-events'
-import { Currency, CurrencyAmount } from '@uniswap/sdk-core'
-import { Pair } from '@uniswap/v2-sdk'
-import { useWeb3React } from '@web3-react/core'
-import { TraceEvent } from 'analytics'
-import { LoadingOpacityContainer, loadingOpacityMixin } from 'components/Loader/styled'
-import PrefetchBalancesWrapper from 'components/PrefetchBalancesWrapper/PrefetchBalancesWrapper'
-import { isSupportedChain } from 'constants/chains'
-import { darken } from 'polished'
-import { ReactNode, useCallback, useState } from 'react'
-import styled, { useTheme } from 'styled-components'
-import { BREAKPOINTS } from 'theme'
-import { ThemedText } from 'theme/components'
-import { flexColumnNoWrap, flexRowNoWrap } from 'theme/styles'
-import { NumberType, useFormatter } from 'utils/formatNumbers'
+import { useMemo, memo, useCallback } from 'react'
+import { Currency, Pair, Token, Percent, CurrencyAmount } from '@dneroswap/sdk'
+import { Button, Text, useModal, Flex, Box, CopyButton, Loading, Skeleton, ArrowDropDownIcon } from '@dneroswap/uikit'
+import { Swap as SwapUI, CurrencyLogo, DoubleCurrencyLogo } from '@dneroswap/widgets-internal'
+import { styled } from 'styled-components'
+import { safeGetAddress } from 'utils'
+import { useTranslation } from '@dneroswap/localization'
+import { WrappedTokenInfo } from '@dneroswap/token-lists'
+import { formatAmount } from '@dneroswap/utils/formatFractions'
 
-import { ReactComponent as DropDown } from '../../assets/images/dropdown.svg'
-import { useCurrencyBalance } from '../../state/connection/hooks'
-import { ButtonGray } from '../Button'
-import DoubleCurrencyLogo from '../DoubleLogo'
-import CurrencyLogo from '../Logo/CurrencyLogo'
-import { Input as NumericalInput } from '../NumericalInput'
-import { RowBetween, RowFixed } from '../Row'
+import { useStablecoinPriceAmount } from 'hooks/useBUSDPrice'
+import { formatNumber } from '@dneroswap/utils/formatBalance'
+import { StablePair } from 'views/AddLiquidity/AddStableLiquidity/hooks/useStableLPDerivedMintInfo'
+
+import { FiatLogo } from 'components/Logo/CurrencyLogo'
+import { useAccount } from 'wagmi'
+import { useCurrencyBalance } from 'state/wallet/hooks'
 import CurrencySearchModal from '../SearchModal/CurrencySearchModal'
-import { FiatValue } from './FiatValue'
 
-const InputPanel = styled.div<{ hideInput?: boolean }>`
-  ${flexColumnNoWrap};
-  position: relative;
-  border-radius: ${({ hideInput }) => (hideInput ? '16px' : '20px')};
-  background-color: ${({ theme, hideInput }) => (hideInput ? 'transparent' : theme.surface2)};
-
-  z-index: 1;
-  width: ${({ hideInput }) => (hideInput ? '100%' : 'initial')};
-  transition: height 1s ease;
-  will-change: height;
-`
-
-const Container = styled.div<{ hideInput: boolean; disabled: boolean }>`
-  border-radius: ${({ hideInput }) => (hideInput ? '16px' : '20px')};
-  border: 1px solid ${({ theme }) => theme.surface3};
-  background-color: ${({ theme }) => theme.surface2};
-  width: ${({ hideInput }) => (hideInput ? '100%' : 'initial')};
-  ${({ theme, hideInput, disabled }) =>
-    !disabled &&
-    `
-    :focus,
-    :hover {
-      border: 1px solid ${hideInput ? ' transparent' : theme.surface2};
-    }
-  `}
-`
-
-const CurrencySelect = styled(ButtonGray)<{
-  visible: boolean
-  selected: boolean
-  hideInput?: boolean
-  disabled?: boolean
-  pointerEvents?: string
-}>`
-  align-items: center;
-  background-color: ${({ selected, theme }) => (selected ? theme.surface1 : theme.accent1)};
-  opacity: ${({ disabled }) => (!disabled ? 1 : 0.4)};
-  box-shadow: ${({ theme }) => theme.deprecated_shallowShadow};
-  color: ${({ selected, theme }) => (selected ? theme.neutral1 : theme.white)};
-  cursor: pointer;
-  border-radius: 16px;
-  outline: none;
-  user-select: none;
-  border: none;
-  font-size: 24px;
-  font-weight: 535;
-  height: ${({ hideInput }) => (hideInput ? '2.8rem' : '2.4rem')};
-  width: ${({ hideInput }) => (hideInput ? '100%' : 'initial')};
-  padding: 0 8px;
-  justify-content: space-between;
-  margin-left: ${({ hideInput }) => (hideInput ? '0' : '12px')};
-  :focus,
-  :hover {
-    background-color: ${({ selected, theme }) => (selected ? theme.surface2 : darken(0.05, theme.accent1))};
-  }
-  visibility: ${({ visible }) => (visible ? 'visible' : 'hidden')};
-  ${({ pointerEvents }) => pointerEvents && `pointer-events: none`}
-`
+import AddToWalletButton from '../AddToWallet/AddToWalletButton'
 
 const InputRow = styled.div<{ selected: boolean }>`
-  ${flexRowNoWrap};
-  align-items: center;
-  justify-content: space-between;
-  padding: ${({ selected }) => (selected ? ' 1rem 1rem 0.75rem 1rem' : '1rem 1rem 1rem 1rem')};
-`
-
-const LabelRow = styled.div`
-  ${flexRowNoWrap};
-  align-items: center;
-  color: ${({ theme }) => theme.neutral1};
-  font-size: 0.75rem;
-  line-height: 1rem;
-  padding: 0 1rem 1rem;
-  span:hover {
-    cursor: pointer;
-    color: ${({ theme }) => darken(0.2, theme.neutral2)};
-  }
-`
-
-const FiatRow = styled(LabelRow)`
-  justify-content: flex-end;
-  padding: 0px 1rem 0.75rem;
-  height: 32px;
-`
-
-// note the line height 0 ensures even if we change font/font-size it doesn't break centering
-const Aligner = styled.span`
   display: flex;
+  flex-flow: row nowrap;
   align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  line-height: 0px;
+  justify-content: flex-end;
+  padding: ${({ selected }) => (selected ? '0.75rem 0.5rem 0.75rem 1rem' : '0.75rem 0.75rem 0.75rem 1rem')};
 `
-
-const StyledDropDown = styled(DropDown)<{ selected: boolean }>`
-  margin: 0 0.25rem 0 0.35rem;
-  height: 35%;
-
-  path {
-    stroke: ${({ selected, theme }) => (selected ? theme.neutral1 : theme.white)};
-    stroke-width: 1.5px;
-  }
-`
-
-const StyledTokenName = styled.span<{ active?: boolean }>`
-  ${({ active }) => (active ? '  margin: 0 0.25rem 0 0.25rem;' : '  margin: 0 0.25rem 0 0.25rem;')}
-  font-size: 20px;
-  white-space: nowrap;
-
-  @media screen and (max-width: ${BREAKPOINTS.sm}px) {
-    font-size: 16px;
-  }
-`
-
-const StyledBalanceMax = styled.button<{ disabled?: boolean }>`
-  background-color: transparent;
-  background-color: ${({ theme }) => theme.accent2};
-  border: none;
-  border-radius: 12px;
-  color: ${({ theme }) => theme.accent1};
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 535;
-  margin-left: 0.25rem;
-  opacity: ${({ disabled }) => (!disabled ? 1 : 0.4)};
-  padding: 4px 6px;
-  pointer-events: ${({ disabled }) => (!disabled ? 'initial' : 'none')};
-
-  :hover {
-    opacity: ${({ disabled }) => (!disabled ? 0.8 : 0.4)};
-  }
-
-  :focus {
-    outline: none;
-  }
-`
-
-const StyledNumericalInput = styled(NumericalInput)<{ $loading: boolean }>`
-  ${loadingOpacityMixin};
-  text-align: left;
-`
-
-const StyledPrefetchBalancesWrapper = styled(PrefetchBalancesWrapper)<{ $fullWidth: boolean }>`
-  width: ${({ $fullWidth }) => ($fullWidth ? '100%' : 'auto')};
+const CurrencySelectButton = styled(Button).attrs({ variant: 'text', scale: 'sm' })`
+  padding: 0px;
 `
 
 interface CurrencyInputPanelProps {
-  value: string
+  value: string | undefined
   onUserInput: (value: string) => void
+  onInputBlur?: () => void
+  onPercentInput?: (percent: number) => void
   onMax?: () => void
+  showQuickInputButton?: boolean
   showMaxButton: boolean
-  label?: ReactNode
+  maxAmount?: CurrencyAmount<Currency>
+  lpPercent?: string
+  label?: string
   onCurrencySelect?: (currency: Currency) => void
   currency?: Currency | null
+  disableCurrencySelect?: boolean
   hideBalance?: boolean
-  pair?: Pair | null
-  hideInput?: boolean
+  pair?: Pair | StablePair | null
   otherCurrency?: Currency | null
-  fiatValue?: { data?: number; isLoading: boolean }
   id: string
   showCommonBases?: boolean
-  showCurrencyAmount?: boolean
-  disableNonToken?: boolean
-  renderBalance?: (amount: CurrencyAmount<Currency>) => ReactNode
-  locked?: boolean
-  loading?: boolean
+  commonBasesType?: string
+  showSearchInput?: boolean
+  beforeButton?: React.ReactNode
+  disabled?: boolean
+  error?: boolean | string
+  showUSDPrice?: boolean
+  tokensToShow?: Token[]
+  currencyLoading?: boolean
+  inputLoading?: boolean
+  title?: React.ReactNode
+  hideBalanceComp?: boolean
 }
-
-export default function CurrencyInputPanel({
+const CurrencyInputPanel = memo(function CurrencyInputPanel({
   value,
   onUserInput,
+  onInputBlur,
+  onPercentInput,
   onMax,
+  showQuickInputButton = false,
   showMaxButton,
+  maxAmount,
+  lpPercent,
+  label,
   onCurrencySelect,
   currency,
+  disableCurrencySelect = false,
+  hideBalance = false,
+  beforeButton,
+  pair = null, // used for double token logo
   otherCurrency,
   id,
   showCommonBases,
-  showCurrencyAmount,
-  disableNonToken,
-  renderBalance,
-  fiatValue,
-  hideBalance = false,
-  pair = null, // used for double token logo
-  hideInput = false,
-  locked = false,
-  loading = false,
-  ...rest
+  commonBasesType,
+  showSearchInput,
+  disabled,
+  error,
+  showUSDPrice,
+  tokensToShow,
+  currencyLoading,
+  inputLoading,
+  title,
+  hideBalanceComp,
 }: CurrencyInputPanelProps) {
-  const [modalOpen, setModalOpen] = useState(false)
-  const { account, chainId } = useWeb3React()
+  const { address: account } = useAccount()
+
   const selectedCurrencyBalance = useCurrencyBalance(account ?? undefined, currency ?? undefined)
-  const theme = useTheme()
-  const { formatCurrencyAmount } = useFormatter()
+  const { t } = useTranslation()
 
-  const handleDismissSearch = useCallback(() => {
-    setModalOpen(false)
-  }, [setModalOpen])
+  const mode = id
+  const token = pair ? pair.liquidityToken : currency?.isToken ? currency : null
+  const tokenAddress = token ? safeGetAddress(token.address) : null
 
-  const chainAllowed = isSupportedChain(chainId)
-
-  return (
-    <InputPanel id={id} hideInput={hideInput} {...rest}>
-      {!locked && (
-        <>
-          <Container hideInput={hideInput} disabled={!chainAllowed}>
-            <InputRow style={hideInput ? { padding: '0', borderRadius: '8px' } : {}} selected={!onCurrencySelect}>
-              {!hideInput && (
-                <StyledNumericalInput
-                  className="token-amount-input"
-                  value={value}
-                  onUserInput={onUserInput}
-                  disabled={!chainAllowed}
-                  $loading={loading}
-                />
-              )}
-
-              <StyledPrefetchBalancesWrapper shouldFetchOnAccountUpdate={modalOpen} $fullWidth={hideInput}>
-                <CurrencySelect
-                  disabled={!chainAllowed}
-                  visible={currency !== undefined}
-                  selected={!!currency}
-                  hideInput={hideInput}
-                  className="open-currency-select-button"
-                  onClick={() => {
-                    if (onCurrencySelect) {
-                      setModalOpen(true)
-                    }
-                  }}
-                  pointerEvents={!onCurrencySelect ? 'none' : undefined}
-                >
-                  <Aligner>
-                    <RowFixed>
-                      {pair ? (
-                        <span style={{ marginRight: '0.5rem' }}>
-                          <DoubleCurrencyLogo currency0={pair.token0} currency1={pair.token1} size={24} margin={true} />
-                        </span>
-                      ) : (
-                        currency && <CurrencyLogo style={{ marginRight: '0.5rem' }} currency={currency} size="24px" />
-                      )}
-                      {pair ? (
-                        <StyledTokenName className="pair-name-container">
-                          {pair?.token0.symbol}:{pair?.token1.symbol}
-                        </StyledTokenName>
-                      ) : (
-                        <StyledTokenName
-                          className="token-symbol-container"
-                          active={Boolean(currency && currency.symbol)}
-                        >
-                          {(currency && currency.symbol && currency.symbol.length > 20
-                            ? currency.symbol.slice(0, 4) +
-                              '...' +
-                              currency.symbol.slice(currency.symbol.length - 5, currency.symbol.length)
-                            : currency?.symbol) || <Trans>Select a token</Trans>}
-                        </StyledTokenName>
-                      )}
-                    </RowFixed>
-                    {onCurrencySelect && <StyledDropDown selected={!!currency} />}
-                  </Aligner>
-                </CurrencySelect>
-              </StyledPrefetchBalancesWrapper>
-            </InputRow>
-            {Boolean(!hideInput && !hideBalance && currency) && (
-              <FiatRow>
-                <RowBetween>
-                  <LoadingOpacityContainer $loading={loading}>
-                    {fiatValue && <FiatValue fiatValue={fiatValue} />}
-                  </LoadingOpacityContainer>
-                  {account && (
-                    <RowFixed style={{ height: '17px' }}>
-                      <ThemedText.DeprecatedBody
-                        onClick={onMax}
-                        color={theme.neutral3}
-                        fontWeight={535}
-                        fontSize={14}
-                        style={{ display: 'inline', cursor: 'pointer' }}
-                      >
-                        {Boolean(!hideBalance && currency && selectedCurrencyBalance) &&
-                          (renderBalance?.(selectedCurrencyBalance as CurrencyAmount<Currency>) || (
-                            <Trans>
-                              Balance:{' '}
-                              {formatCurrencyAmount({
-                                amount: selectedCurrencyBalance,
-                                type: NumberType.TokenNonTx,
-                              })}
-                            </Trans>
-                          ))}
-                      </ThemedText.DeprecatedBody>
-                      {Boolean(showMaxButton && selectedCurrencyBalance) && (
-                        <TraceEvent
-                          events={[BrowserEvent.onClick]}
-                          name={SwapEventName.SWAP_MAX_TOKEN_AMOUNT_SELECTED}
-                          element={InterfaceElementName.MAX_TOKEN_AMOUNT_BUTTON}
-                        >
-                          <StyledBalanceMax onClick={onMax}>
-                            <Trans>MAX</Trans>
-                          </StyledBalanceMax>
-                        </TraceEvent>
-                      )}
-                    </RowFixed>
-                  )}
-                </RowBetween>
-              </FiatRow>
-            )}
-          </Container>
-        </>
-      )}
-      {onCurrencySelect && (
-        <CurrencySearchModal
-          isOpen={modalOpen}
-          onDismiss={handleDismissSearch}
-          onCurrencySelect={onCurrencySelect}
-          selectedCurrency={currency}
-          otherSelectedCurrency={otherCurrency}
-          showCommonBases={showCommonBases}
-          showCurrencyAmount={showCurrencyAmount}
-          disableNonToken={disableNonToken}
-        />
-      )}
-    </InputPanel>
+  const amountInDollar = useStablecoinPriceAmount(
+    showUSDPrice ? currency ?? undefined : undefined,
+    value !== undefined && Number.isFinite(+value) ? +value : undefined,
+    {
+      hideIfPriceImpactTooHigh: true,
+      enabled: Boolean(value !== undefined && Number.isFinite(+value)),
+    },
   )
-}
+
+  const [onPresentCurrencyModal] = useModal(
+    <CurrencySearchModal
+      onCurrencySelect={onCurrencySelect}
+      selectedCurrency={currency}
+      otherSelectedCurrency={otherCurrency}
+      showCommonBases={showCommonBases}
+      commonBasesType={commonBasesType}
+      showSearchInput={showSearchInput}
+      tokensToShow={tokensToShow}
+      mode={mode}
+    />,
+  )
+
+  const percentAmount = useMemo(
+    () => ({
+      25: maxAmount ? maxAmount.multiply(new Percent(25, 100)).toExact() : undefined,
+      50: maxAmount ? maxAmount.multiply(new Percent(50, 100)).toExact() : undefined,
+      75: maxAmount ? maxAmount.multiply(new Percent(75, 100)).toExact() : undefined,
+    }),
+    [maxAmount],
+  )
+
+  const handleUserInput = useCallback(
+    (val: string) => {
+      onUserInput(val)
+    },
+    [onUserInput],
+  )
+
+  const onCurrencySelectClick = useCallback(() => {
+    if (!disableCurrencySelect) {
+      onPresentCurrencyModal()
+    }
+  }, [onPresentCurrencyModal, disableCurrencySelect])
+
+  const isAtPercentMax = (maxAmount && value === maxAmount.toExact()) || (lpPercent && lpPercent === '100')
+
+  const balance = !hideBalance && !!currency ? formatAmount(selectedCurrencyBalance, 6) : undefined
+  return (
+    <SwapUI.CurrencyInputPanel
+      id={id}
+      disabled={disabled}
+      error={error as boolean}
+      value={value}
+      onInputBlur={onInputBlur}
+      onUserInput={handleUserInput}
+      loading={inputLoading}
+      top={
+        <>
+          {title}
+          <Flex alignItems="center">
+            {beforeButton}
+            <CurrencySelectButton
+              className="open-currency-select-button"
+              selected={!!currency}
+              onClick={onCurrencySelectClick}
+            >
+              <Flex alignItems="center" justifyContent="space-between">
+                {pair ? (
+                  <DoubleCurrencyLogo currency0={pair.token0} currency1={pair.token1} size={16} margin />
+                ) : currency ? (
+                  id === 'onramp-input' ? (
+                    <FiatLogo currency={currency} size="24px" style={{ marginRight: '8px' }} />
+                  ) : (
+                    <CurrencyLogo currency={currency} size="24px" style={{ marginRight: '8px' }} />
+                  )
+                ) : currencyLoading ? (
+                  <Skeleton width="24px" height="24px" variant="circle" />
+                ) : null}
+                {currencyLoading ? null : pair ? (
+                  <Text id="pair" bold>
+                    {pair?.token0.symbol}:{pair?.token1.symbol}
+                  </Text>
+                ) : (
+                  <Text id="pair" bold>
+                    {(currency && currency.symbol && currency.symbol.length > 10
+                      ? `${currency.symbol.slice(0, 4)}...${currency.symbol.slice(
+                          currency.symbol.length - 5,
+                          currency.symbol.length,
+                        )}`
+                      : currency?.symbol) || t('Select a currency')}
+                  </Text>
+                )}
+                {!currencyLoading && !disableCurrencySelect && <ArrowDropDownIcon />}
+              </Flex>
+            </CurrencySelectButton>
+            {token && tokenAddress ? (
+              <Flex style={{ gap: '4px' }} ml="4px" alignItems="center">
+                <CopyButton
+                  width="16px"
+                  buttonColor="textSubtle"
+                  text={tokenAddress}
+                  tooltipMessage={t('Token address copied')}
+                />
+                <AddToWalletButton
+                  variant="text"
+                  p="0"
+                  height="auto"
+                  width="fit-content"
+                  tokenAddress={tokenAddress}
+                  tokenSymbol={token.symbol}
+                  tokenDecimals={token.decimals}
+                  tokenLogo={token instanceof WrappedTokenInfo ? token.logoURI : undefined}
+                />
+              </Flex>
+            ) : null}
+          </Flex>
+          {account && !hideBalanceComp && (
+            <Text
+              onClick={!disabled ? onMax : undefined}
+              color="textSubtle"
+              fontSize="12px"
+              ellipsis
+              title={!hideBalance && !!currency ? t('Balance: %balance%', { balance: balance ?? t('Loading') }) : ' -'}
+              style={{ display: 'inline', cursor: 'pointer' }}
+            >
+              {!hideBalance && !!currency
+                ? (balance?.replace('.', '')?.length || 0) > 12
+                  ? balance
+                  : t('Balance: %balance%', { balance: balance ?? t('Loading') })
+                : ' -'}
+            </Text>
+          )}
+        </>
+      }
+      bottom={
+        <>
+          {!!showUSDPrice && (
+            <Flex justifyContent="flex-end" mr="1rem">
+              <Flex maxWidth="200px">
+                {inputLoading ? (
+                  <Loading width="14px" height="14px" />
+                ) : showUSDPrice && Number.isFinite(amountInDollar) ? (
+                  <Text fontSize="12px" color="textSubtle" ellipsis>
+                    {`~${amountInDollar ? formatNumber(amountInDollar) : 0} USD`}
+                  </Text>
+                ) : (
+                  <Box height="18px" />
+                )}
+              </Flex>
+            </Flex>
+          )}
+          <InputRow selected={disableCurrencySelect}>
+            {account && currency && selectedCurrencyBalance?.greaterThan(0) && !disabled && label !== 'To' && (
+              <Flex alignItems="right" justifyContent="right">
+                {maxAmount?.greaterThan(0) &&
+                  showQuickInputButton &&
+                  onPercentInput &&
+                  [25, 50, 75].map((percent) => {
+                    const isAtCurrentPercent =
+                      (maxAmount && value !== '0' && value === percentAmount[percent]) ||
+                      (lpPercent && lpPercent === percent.toString())
+
+                    return (
+                      <Button
+                        key={`btn_quickCurrency${percent}`}
+                        onClick={() => {
+                          onPercentInput(percent)
+                        }}
+                        scale="xs"
+                        mr="5px"
+                        variant={isAtCurrentPercent ? 'primary' : 'secondary'}
+                        style={{ textTransform: 'uppercase' }}
+                      >
+                        {percent}%
+                      </Button>
+                    )
+                  })}
+                {maxAmount?.greaterThan(0) && showMaxButton && (
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      e.preventDefault()
+                      onMax?.()
+                    }}
+                    scale="xs"
+                    variant={isAtPercentMax ? 'primary' : 'secondary'}
+                    style={{ textTransform: 'uppercase' }}
+                  >
+                    {t('Max')}
+                  </Button>
+                )}
+              </Flex>
+            )}
+          </InputRow>
+        </>
+      }
+    />
+  )
+})
+
+export default CurrencyInputPanel
