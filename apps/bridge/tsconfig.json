@@ -1,0 +1,14 @@
+{
+  "extends": "@dneroswap/tsconfig/nextjs.json",
+  "include": ["next-env.d.ts"],
+  "compilerOptions": {
+    "target": "ES2015",
+    "baseUrl": "./",
+    "paths": {
+      "*": ["./*"],
+      "@dneroswap/uikit": ["../../packages/uikit/src/index.ts"],
+      "@dneroswap/uikit/*": ["../../packages/uikit/src/*"]
+    }
+  },
+  "exclude": ["node_modules"]
+}
