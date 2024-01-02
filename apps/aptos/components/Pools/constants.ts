@@ -1,0 +1,2 @@
+export const ACC_WDNERO_PRECISION = '100000000'
+export const POOL_RESET_INTERVAL = 1000 * 10
