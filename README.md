@@ -1,54 +1,110 @@
-# Uniswap Labs: Front End Interfaces
+# 🥞 Dneroswap Frontend
 
-An open source repository for all Uniswap front end interfaces maintained by Uniswap Labs. Uniswap is a protocol for decentralized exchange of Ethereum tokens.
+<p align="center">
+  <a href="https://pancakeswap.finance">
+      <img src="https://pancakeswap.finance/logo.png" height="128">
+  </a>
+</p>
 
-## Interfaces
+This project contains the main features of the pancake application.
 
-- Web: [app.uniswap.org](https://app.uniswap.org)
-- Wallet: [wallet.uniswap.org](https://wallet.uniswap.org)
+If you want to contribute, please refer to the [contributing guidelines](./CONTRIBUTING.md) of this project.
 
-## Socials / Contact
+## Documentation
 
-- Twitter: [@Uniswap](https://twitter.com/Uniswap)
-- Reddit: [/r/Uniswap](https://www.reddit.com/r/Uniswap/)
-- Email: [contact@uniswap.org](mailto:contact@uniswap.org)
-- Discord: [Uniswap](https://discord.gg/FCfyBSbCU5)
+- [Info](doc/Info.md)
+- [Cypress tests](doc/Cypress.md)
 
-## Uniswap Links
+> Install dependencies using [pnpm](https://pnpm.io)
 
-- Website: [uniswap.org](https://uniswap.org/)
-- Docs: [uniswap.org/docs/](https://docs.uniswap.org/)
+## `apps/web`
 
-## Whitepapers
+<details>
+<summary>
+How to start
+</summary>
 
-- [V3](https://uniswap.org/whitepaper-v3.pdf)
-- [V2](https://uniswap.org/whitepaper.pdf)
-- [V1](https://hackmd.io/C-DvwDSfSxuh-Gd4WKE_ig)
+```sh
+pnpm i
+```
 
-## Apps
+start the development server
 
-For instructions per application or package, see the README published for each application:
+```sh
+pnpm dev
+```
 
-- [Web](apps/web/README.md)
-- [Mobile](apps/mobile/README.md)
+build with production mode
 
-## Releases
+```sh
+pnpm build
 
-All interface releases are tagged and published to this repository. To browse them easily, see the [Github releases tab](https://github.com/Uniswap/interface/releases).
+# start the application after build
+pnpm start
+```
 
-## Translations
+</details>
 
-Translations for our applications are done through [crowdin](https://crowdin.com).
+## `apps/aptos`
 
-| App     | Coverage |
-| ------- | -------- |
-| web     | [![Crowdin](https://badges.crowdin.net/uniswap-interface/localized.svg)](https://crowdin.com/project/uniswap-interface) |
-| mobile  | [![Crowdin](https://badges.crowdin.net/uniswap-wallet/localized.svg)](https://crowdin.com/project/uniswap-wallet) |
+<details>
+<summary>
+How to start
+</summary>
 
-## 🗂 Directory Structure
+```sh
+pnpm dev:aptos
+```
 
-| Folder      | Contents                                                                       |
-| ----------- | ------------------------------------------------------------------------------ |
-| `apps/`     | The home for each standalone application.                                      |
-| `config/`   | Shared infrastructure packages and configurations.                             |
-| `packages/` | Shared code packages covering UI, shared functionality, and shared utilities.  |
+```sh
+pnpm build:aptos
+```
+
+</details>
+
+## `apps/blog`
+
+<details>
+<summary>
+How to start
+</summary>
+
+```sh
+pnpm dev:blog
+```
+
+```sh
+pnpm build:blog
+```
+
+</details>
+
+## `apps/games`
+
+<details>
+<summary>
+How to start
+</summary>
+
+```sh
+pnpm dev:games
+```
+
+```sh
+pnpm build:games
+```
+
+</details>
+
+## Packages
+
+| Package                                    | Description                                                                                                 |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| [sdk](/packages/swap-sdk)                  | An SDK for building applications on top of Dneroswap                                                      |
+| [aptos-swap-sdk](/packages/aptos-swap-sdk) | Aptos version of Swap SDK                                                                                   |
+| [swap-sdk-core](/packages/swap-sdk-core)   | Swap SDK Shared code                                                                                        |
+| [wagmi](/packages/wagmi)                   | Extension for [wagmi](https://github.com/wagmi-dev/wagmi), including bsc chain and binance wallet connector |
+| [awgmi](/packages/awgmi)                   | Connect to Aptos with similar wagmi React hooks.                                                            |
+| [smart-router](/packages/smart-router)     | An SDK for getting best trade routes.                                                                       |
+| [multicall](/packages/multicall)           | Enhanced multicall sdk to safely make multicalls within the gas limit.                                      |
+| [v3-sdk](/packages/v3-sdk)                 | An SDK for building applications on top of Dneroswap V3.                                                  |
