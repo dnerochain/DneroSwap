@@ -1,90 +1,55 @@
-import { ContractTransaction } from '@ethersproject/contracts'
-import { InterfaceEventName } from '@uniswap/analytics-events'
-import { CurrencyAmount, MaxUint256, Token } from '@uniswap/sdk-core'
-import { sendAnalyticsEvent, useTrace } from 'analytics'
-import { useTokenContract } from 'hooks/useContract'
-import { useSingleCallResult } from 'lib/hooks/multicall'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ApproveTransactionInfo, TransactionType } from 'state/transactions/types'
-import { UserRejectedRequestError } from 'utils/errors'
-import { didUserReject } from 'utils/swapErrorToUserReadableMessage'
+import { Token, CurrencyAmount } from '@dneroswap/sdk'
+import { erc20ABI } from 'wagmi'
+import { useMemo } from 'react'
 
-const MAX_ALLOWANCE = MaxUint256.toString()
+import { useQuery } from '@tanstack/react-query'
+import { useActiveChainId } from 'hooks/useActiveChainId'
+import { publicClient } from 'utils/wagmi'
+import { FAST_INTERVAL } from 'config/constants'
 
-export function useTokenAllowance(
+function useTokenAllowance(
   token?: Token,
   owner?: string,
-  spender?: string
+  spender?: string,
 ): {
-  tokenAllowance?: CurrencyAmount<Token>
-  isSyncing: boolean
+  allowance: CurrencyAmount<Token> | undefined
+  refetch: () => Promise<any>
 } {
-  const contract = useTokenContract(token?.address, false)
-  const inputs = useMemo(() => [owner, spender], [owner, spender])
+  const { chainId } = useActiveChainId()
 
-  // If there is no allowance yet, re-check next observed block.
-  // This guarantees that the tokenAllowance is marked isSyncing upon approval and updated upon being synced.
-  const [blocksPerFetch, setBlocksPerFetch] = useState<1>()
-  const { result, syncing: isSyncing } = useSingleCallResult(contract, 'allowance', inputs, { blocksPerFetch }) as {
-    result?: Awaited<ReturnType<NonNullable<typeof contract>['allowance']>>
-    syncing: boolean
-  }
+  const inputs = useMemo(() => [owner, spender] as [`0x${string}`, `0x${string}`], [owner, spender])
 
-  const rawAmount = result?.toString() // convert to a string before using in a hook, to avoid spurious rerenders
-  const allowance = useMemo(
-    () => (token && rawAmount ? CurrencyAmount.fromRawAmount(token, rawAmount) : undefined),
-    [token, rawAmount]
-  )
-  useEffect(() => setBlocksPerFetch(allowance?.equalTo(0) ? 1 : undefined), [allowance])
-
-  return useMemo(() => ({ tokenAllowance: allowance, isSyncing }), [allowance, isSyncing])
-}
-
-export function useUpdateTokenAllowance(
-  amount: CurrencyAmount<Token> | undefined,
-  spender: string
-): () => Promise<{ response: ContractTransaction; info: ApproveTransactionInfo }> {
-  const contract = useTokenContract(amount?.currency.address)
-  const trace = useTrace()
-
-  return useCallback(async () => {
-    try {
-      if (!amount) throw new Error('missing amount')
-      if (!contract) throw new Error('missing contract')
-      if (!spender) throw new Error('missing spender')
-
-      const allowance = amount.equalTo(0) ? '0' : MAX_ALLOWANCE
-      const response = await contract.approve(spender, allowance)
-      sendAnalyticsEvent(InterfaceEventName.APPROVE_TOKEN_TXN_SUBMITTED, {
-        chain_id: amount.currency.chainId,
-        token_symbol: amount.currency.symbol,
-        token_address: amount.currency.address,
-        ...trace,
+  const { data: allowance, refetch } = useQuery(
+    [chainId, token?.address, owner, spender],
+    () => {
+      if (!token) {
+        throw new Error('No token')
+      }
+      return publicClient({ chainId }).readContract({
+        abi: erc20ABI,
+        address: token?.address,
+        functionName: 'allowance',
+        args: inputs,
       })
-      return {
-        response,
-        info: {
-          type: TransactionType.APPROVAL,
-          tokenAddress: contract.address,
-          spender,
-          amount: allowance,
-        },
-      }
-    } catch (e: unknown) {
-      const symbol = amount?.currency.symbol ?? 'Token'
-      if (didUserReject(e)) {
-        throw new UserRejectedRequestError(`${symbol} token allowance failed: User rejected`)
-      }
-      throw new Error(`${symbol} token allowance failed: ${e instanceof Error ? e.message : e}`)
-    }
-  }, [amount, contract, spender, trace])
+    },
+    {
+      refetchInterval: FAST_INTERVAL,
+      retry: true,
+      refetchOnWindowFocus: false,
+      enabled: Boolean(spender && owner && token),
+    },
+  )
+
+  return useMemo(
+    () => ({
+      allowance:
+        token && typeof allowance !== 'undefined'
+          ? CurrencyAmount.fromRawAmount(token, allowance.toString())
+          : undefined,
+      refetch,
+    }),
+    [token, refetch, allowance],
+  )
 }
 
-export function useRevokeTokenAllowance(
-  token: Token | undefined,
-  spender: string
-): () => Promise<{ response: ContractTransaction; info: ApproveTransactionInfo }> {
-  const amount = useMemo(() => (token ? CurrencyAmount.fromRawAmount(token, 0) : undefined), [token])
-
-  return useUpdateTokenAllowance(amount, spender)
-}
+export default useTokenAllowance

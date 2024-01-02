@@ -1,170 +1,526 @@
-import { Contract } from '@ethersproject/contracts'
-import { InterfaceEventName } from '@uniswap/analytics-events'
-import {
-  ARGENT_WALLET_DETECTOR_ADDRESS,
-  ChainId,
-  ENS_REGISTRAR_ADDRESSES,
-  MULTICALL_ADDRESSES,
-  NONFUNGIBLE_POSITION_MANAGER_ADDRESSES,
-  V2_ROUTER_ADDRESS,
-  V3_MIGRATOR_ADDRESSES,
-} from '@uniswap/sdk-core'
-import IUniswapV2PairJson from '@uniswap/v2-core/build/IUniswapV2Pair.json'
-import IUniswapV2Router02Json from '@uniswap/v2-periphery/build/IUniswapV2Router02.json'
-import UniswapInterfaceMulticallJson from '@uniswap/v3-periphery/artifacts/contracts/lens/UniswapInterfaceMulticall.sol/UniswapInterfaceMulticall.json'
-import NonfungiblePositionManagerJson from '@uniswap/v3-periphery/artifacts/contracts/NonfungiblePositionManager.sol/NonfungiblePositionManager.json'
-import V3MigratorJson from '@uniswap/v3-periphery/artifacts/contracts/V3Migrator.sol/V3Migrator.json'
-import { useWeb3React } from '@web3-react/core'
-import ARGENT_WALLET_DETECTOR_ABI from 'abis/argent-wallet-detector.json'
-import EIP_2612 from 'abis/eip_2612.json'
-import ENS_PUBLIC_RESOLVER_ABI from 'abis/ens-public-resolver.json'
-import ENS_ABI from 'abis/ens-registrar.json'
-import ERC20_ABI from 'abis/erc20.json'
-import ERC20_BYTES32_ABI from 'abis/erc20_bytes32.json'
-import ERC721_ABI from 'abis/erc721.json'
-import ERC1155_ABI from 'abis/erc1155.json'
-import { ArgentWalletDetector, EnsPublicResolver, EnsRegistrar, Erc20, Erc721, Erc1155, Weth } from 'abis/types'
-import WETH_ABI from 'abis/weth.json'
-import { sendAnalyticsEvent } from 'analytics'
-import { DEPRECATED_RPC_PROVIDERS, RPC_PROVIDERS } from 'constants/providers'
-import { WRAPPED_NATIVE_CURRENCY } from 'constants/tokens'
-import { useFallbackProviderEnabled } from 'featureFlags/flags/fallbackProvider'
-import { useEffect, useMemo } from 'react'
-import { NonfungiblePositionManager, UniswapInterfaceMulticall } from 'types/v3'
-import { V3Migrator } from 'types/v3/V3Migrator'
-import { getContract } from 'utils'
+import { getPoolContractBySousId } from '@dneroswap/pools'
 
-const { abi: IUniswapV2PairABI } = IUniswapV2PairJson
-const { abi: IUniswapV2Router02ABI } = IUniswapV2Router02Json
-const { abi: MulticallABI } = UniswapInterfaceMulticallJson
-const { abi: NFTPositionManagerABI } = NonfungiblePositionManagerJson
-const { abi: V2MigratorABI } = V3MigratorJson
+import { Abi, Address } from 'viem'
+import { erc20ABI, usePublicClient, useWalletClient } from 'wagmi'
+
+import { useActiveChainId } from 'hooks/useActiveChainId'
+
+import addresses from 'config/constants/contracts'
+import { useMemo } from 'react'
+import { getMulticallAddress, getPredictionsV1Address, getZapAddress } from 'utils/addressHelpers'
+import {
+  getAffiliateProgramContract,
+  getAnniversaryAchievementContract,
+  getBWDneroFarmBoosterContract,
+  getBWDneroFarmBoosterProxyFactoryContract,
+  getBWDneroFarmBoosterV3Contract,
+  getBWDneroFarmBoosterVeWDneroContract,
+  getBWDneroProxyContract,
+  getBunnyFactoryContract,
+  getWDneroFlexibleSideVaultV2Contract,
+  getWDneroPredictionsContract,
+  getWDneroVaultV2Contract,
+  getCalcGaugesVotingContract,
+  getChainlinkOracleContract,
+  getContract,
+  getCrossFarmingProxyContract,
+  getFarmAuctionContract,
+  getFixedStakingContract,
+  getGaugesVotingContract,
+  getIfoCreditAddressContract,
+  getLotteryV2Contract,
+  getMasterChefContract,
+  getMasterChefV3Contract,
+  getNftMarketContract,
+  getNftSaleContract,
+  getNonDneroVaultContract,
+  getPointCenterIfoContract,
+  getPositionManagerAdapterContract,
+  getPositionManagerWrapperContract,
+  getPotteryDrawContract,
+  getPotteryVaultContract,
+  getPredictionsV1Contract,
+  getPredictionsV2Contract,
+  getProfileContract,
+  getRevenueSharingWDneroPoolContract,
+  getRevenueSharingPoolContract,
+  getRevenueSharingPoolGatewayContract,
+  getRevenueSharingVeWDneroContract,
+  getSidContract,
+  getStableSwapNativeHelperContract,
+  getTradingCompetitionContractEaster,
+  getTradingCompetitionContractFanToken,
+  getTradingCompetitionContractMoD,
+  getTradingCompetitionContractMobox,
+  getTradingRewardContract,
+  getTradingRewardTopTradesContract,
+  getUnsContract,
+  getV3AirdropContract,
+  getV3MigratorContract,
+  getVWDneroContract,
+  getVeWDneroContract,
+} from 'utils/contractHelpers'
+
+import { ChainId } from '@dneroswap/chains'
+import { ifoV7ABI } from '@dneroswap/ifos'
+import { WNATIVE, dneroswapPairV2ABI } from '@dneroswap/sdk'
+import { WDNERO } from '@dneroswap/tokens'
+import { nonfungiblePositionManagerABI } from '@dneroswap/v3-sdk'
+import { multicallABI } from 'config/abi/Multicall'
+import { erc20Bytes32ABI } from 'config/abi/erc20_bytes32'
+import { ifoV1ABI } from 'config/abi/ifoV1'
+import { ifoV2ABI } from 'config/abi/ifoV2'
+import { ifoV3ABI } from 'config/abi/ifoV3'
+import { wbethDneroABI } from 'config/abi/wbethDNERO'
+import { wbethEthABI } from 'config/abi/wbethETH'
+import { zapABI } from 'config/abi/zap'
+import { WBETH } from 'config/constants/liquidStaking'
+import { VaultKey } from 'state/types'
+
+import { erc721CollectionABI } from 'config/abi/erc721collection'
+import { infoStableSwapABI } from 'config/abi/infoStableSwap'
+import { wethABI } from 'config/abi/weth'
+/**
+ * Helper hooks to get specific contracts (by ABI)
+ */
+
+export const useIfoV1Contract = (address: Address) => {
+  return useContract(address, ifoV1ABI)
+}
+
+export const useIfoV2Contract = (address: Address) => {
+  return useContract(address, ifoV2ABI)
+}
+
+export const useIfoV3Contract = (address: Address) => {
+  return useContract(address, ifoV3ABI)
+}
+
+export const useIfoV7Contract = (address: Address, options?: UseContractOptions) => {
+  return useContract(address, ifoV7ABI, options)
+}
+
+export const useERC20 = (address: Address, options?: UseContractOptions) => {
+  return useContract(address, erc20ABI, options)
+}
+
+export const useWDnero = () => {
+  const { chainId } = useActiveChainId()
+
+  return useContract((chainId && WDNERO[chainId]?.address) ?? WDNERO[ChainId.DNERO].address, erc20ABI)
+}
+
+export const useBunnyFactory = () => {
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getBunnyFactoryContract(signer ?? undefined), [signer])
+}
+
+export const useProfileContract = () => {
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getProfileContract(signer ?? undefined), [signer])
+}
+
+export const useLotteryV2Contract = () => {
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getLotteryV2Contract(signer ?? undefined), [signer])
+}
+
+export const useMasterchef = () => {
+  const { chainId } = useActiveChainId()
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getMasterChefContract(signer ?? undefined, chainId), [signer, chainId])
+}
+
+export const useSousChef = (id) => {
+  const { data: signer } = useWalletClient()
+  const { chainId } = useActiveChainId()
+  const publicClient = usePublicClient({ chainId })
+  return useMemo(
+    () =>
+      getPoolContractBySousId({
+        sousId: id,
+        signer,
+        chainId,
+        publicClient,
+      }),
+    [id, signer, chainId, publicClient],
+  )
+}
+
+export const usePointCenterIfoContract = () => {
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getPointCenterIfoContract(signer ?? undefined), [signer])
+}
+
+export const useTradingCompetitionContractEaster = () => {
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getTradingCompetitionContractEaster(signer ?? undefined), [signer])
+}
+
+export const useTradingCompetitionContractFanToken = () => {
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getTradingCompetitionContractFanToken(signer ?? undefined), [signer])
+}
+
+export const useTradingCompetitionContractMobox = () => {
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getTradingCompetitionContractMobox(signer ?? undefined), [signer])
+}
+
+export const useTradingCompetitionContractMoD = () => {
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getTradingCompetitionContractMoD(signer ?? undefined), [signer])
+}
+
+export const useVaultPoolContract = <T extends VaultKey>(
+  vaultKey: T,
+):
+  | (T extends VaultKey.WDneroVault
+      ? ReturnType<typeof getWDneroVaultV2Contract>
+      : ReturnType<typeof getWDneroFlexibleSideVaultV2Contract>)
+  | null => {
+  const { chainId } = useActiveChainId()
+  const { data: signer } = useWalletClient()
+  return useMemo(() => {
+    if (vaultKey === VaultKey.WDneroVault) {
+      return getWDneroVaultV2Contract(signer ?? undefined, chainId)
+    }
+    if (vaultKey === VaultKey.WDneroFlexibleSideVault) {
+      return getWDneroFlexibleSideVaultV2Contract(signer ?? undefined, chainId)
+    }
+    return null
+  }, [signer, vaultKey, chainId]) as any
+}
+
+export const useWDneroVaultContract = () => {
+  const { data: signer } = useWalletClient()
+  const { chainId } = useActiveChainId()
+  return useMemo(() => getWDneroVaultV2Contract(signer ?? undefined, chainId), [signer, chainId])
+}
+
+export const useIfoCreditAddressContract = () => {
+  return useMemo(() => getIfoCreditAddressContract(), [])
+}
+
+export const usePredictionsContract = (address: Address, tokenSymbol: string) => {
+  const { data: signer } = useWalletClient()
+  return useMemo(() => {
+    if (address === getPredictionsV1Address()) {
+      return getPredictionsV1Contract(signer ?? undefined)
+    }
+    const getPredContract = tokenSymbol === 'WDNERO' ? getWDneroPredictionsContract : getPredictionsV2Contract
+
+    return getPredContract(address, signer ?? undefined)
+  }, [address, tokenSymbol, signer])
+}
+
+export const useChainlinkOracleContract = (address) => {
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getChainlinkOracleContract(address, signer ?? undefined), [signer, address])
+}
+
+export const useNftSaleContract = () => {
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getNftSaleContract(signer ?? undefined), [signer])
+}
+
+export const useFarmAuctionContract = () => {
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getFarmAuctionContract(signer ?? undefined), [signer])
+}
+
+export const useNftMarketContract = () => {
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getNftMarketContract(signer ?? undefined), [signer])
+}
+
+export const useErc721CollectionContract = (collectionAddress: Address) => {
+  return useContract(collectionAddress, erc721CollectionABI)
+}
+
+// Code below migrated from Exchange useContract.ts
+
+type UseContractOptions = {
+  chainId?: ChainId
+}
 
 // returns null on errors
-export function useContract<T extends Contract = Contract>(
-  addressOrAddressMap: string | { [chainId: number]: string } | undefined,
-  ABI: any,
-  withSignerIfPossible = true
-): T | null {
-  const { provider, account, chainId } = useWeb3React()
+export function useContract<TAbi extends Abi>(
+  addressOrAddressMap?: Address | { [chainId: number]: Address },
+  abi?: TAbi,
+  options?: UseContractOptions,
+) {
+  const { chainId: currentChainId } = useActiveChainId()
+  const chainId = options?.chainId || currentChainId
+  const { data: walletClient } = useWalletClient()
 
   return useMemo(() => {
-    if (!addressOrAddressMap || !ABI || !provider || !chainId) return null
-    let address: string | undefined
+    if (!addressOrAddressMap || !abi || !chainId) return null
+    let address: Address | undefined
     if (typeof addressOrAddressMap === 'string') address = addressOrAddressMap
     else address = addressOrAddressMap[chainId]
     if (!address) return null
     try {
-      return getContract(address, ABI, provider, withSignerIfPossible && account ? account : undefined)
+      return getContract({
+        abi,
+        address,
+        chainId,
+        signer: walletClient ?? undefined,
+      })
     } catch (error) {
       console.error('Failed to get contract', error)
       return null
     }
-  }, [addressOrAddressMap, ABI, provider, chainId, withSignerIfPossible, account]) as T
+  }, [addressOrAddressMap, abi, chainId, walletClient])
 }
 
-function useMainnetContract<T extends Contract = Contract>(address: string | undefined, ABI: any): T | null {
-  const { chainId } = useWeb3React()
-  const isMainnet = chainId === ChainId.MAINNET
-  const contract = useContract(isMainnet ? address : undefined, ABI, false)
-  const providers = useFallbackProviderEnabled() ? RPC_PROVIDERS : DEPRECATED_RPC_PROVIDERS
-
-  return useMemo(() => {
-    if (isMainnet) return contract
-    if (!address) return null
-    const provider = providers[ChainId.MAINNET]
-    try {
-      return getContract(address, ABI, provider)
-    } catch (error) {
-      console.error('Failed to get mainnet contract', error)
-      return null
-    }
-  }, [isMainnet, contract, address, providers, ABI]) as T
+export function useTokenContract(tokenAddress?: Address) {
+  return useContract(tokenAddress, erc20ABI)
 }
 
-export function useV2MigratorContract() {
-  return useContract<V3Migrator>(V3_MIGRATOR_ADDRESSES, V2MigratorABI, true)
+export function useWNativeContract() {
+  const { chainId } = useActiveChainId()
+  return useContract(chainId ? WNATIVE[chainId]?.address : undefined, wethABI)
 }
 
-export function useTokenContract(tokenAddress?: string, withSignerIfPossible?: boolean) {
-  return useContract<Erc20>(tokenAddress, ERC20_ABI, withSignerIfPossible)
+export function useWBETHContract() {
+  const { chainId } = useActiveChainId()
+
+  const abi = useMemo(
+    () => (chainId && [ChainId.ETHEREUM, ChainId.GOERLI].includes(chainId) ? wbethEthABI : wbethDneroABI),
+    [chainId],
+  )
+
+  return useContract(chainId ? WBETH[chainId] : undefined, abi)
 }
 
-export function useWETHContract(withSignerIfPossible?: boolean) {
-  const { chainId } = useWeb3React()
-  return useContract<Weth>(
-    chainId ? WRAPPED_NATIVE_CURRENCY[chainId]?.address : undefined,
-    WETH_ABI,
-    withSignerIfPossible
+export function useBytes32TokenContract(tokenAddress?: Address) {
+  return useContract(tokenAddress, erc20Bytes32ABI)
+}
+
+export function usePairContract(pairAddress?: Address, options?: UseContractOptions) {
+  return useContract(pairAddress, dneroswapPairV2ABI, options)
+}
+
+export function useMulticallContract() {
+  const { chainId } = useActiveChainId()
+  return useContract(getMulticallAddress(chainId), multicallABI)
+}
+
+export const usePotterytVaultContract = (address: Address) => {
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getPotteryVaultContract(address, signer ?? undefined), [address, signer])
+}
+
+export const usePotterytDrawContract = () => {
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getPotteryDrawContract(signer ?? undefined), [signer])
+}
+
+export function useZapContract() {
+  const { chainId } = useActiveChainId()
+  return useContract(getZapAddress(chainId), zapABI)
+}
+
+export function useBWDneroFarmBoosterContract() {
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getBWDneroFarmBoosterContract(signer ?? undefined), [signer])
+}
+
+export function useBWDneroFarmBoosterV3Contract() {
+  const { chainId } = useActiveChainId()
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getBWDneroFarmBoosterV3Contract(signer ?? undefined, chainId), [signer, chainId])
+}
+
+export function useBWDneroFarmBoosterVeWDneroContract() {
+  const { chainId } = useActiveChainId()
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getBWDneroFarmBoosterVeWDneroContract(signer ?? undefined, chainId), [signer, chainId])
+}
+
+export function usePositionManagerWrapperContract(address: Address) {
+  const { chainId } = useActiveChainId()
+  const { data: signer } = useWalletClient()
+  return useMemo(
+    () => getPositionManagerWrapperContract(address, signer ?? undefined, chainId),
+    [signer, chainId, address],
   )
 }
 
-export function useERC721Contract(nftAddress?: string) {
-  return useContract<Erc721>(nftAddress, ERC721_ABI, false)
-}
-
-export function useERC1155Contract(nftAddress?: string) {
-  return useContract<Erc1155>(nftAddress, ERC1155_ABI, false)
-}
-
-export function useArgentWalletDetectorContract() {
-  return useContract<ArgentWalletDetector>(ARGENT_WALLET_DETECTOR_ADDRESS, ARGENT_WALLET_DETECTOR_ABI, false)
-}
-
-export function useENSRegistrarContract() {
-  return useMainnetContract<EnsRegistrar>(ENS_REGISTRAR_ADDRESSES[ChainId.MAINNET], ENS_ABI)
-}
-
-export function useENSResolverContract(address: string | undefined) {
-  return useMainnetContract<EnsPublicResolver>(address, ENS_PUBLIC_RESOLVER_ABI)
-}
-
-export function useBytes32TokenContract(tokenAddress?: string, withSignerIfPossible?: boolean): Contract | null {
-  return useContract(tokenAddress, ERC20_BYTES32_ABI, withSignerIfPossible)
-}
-
-export function useEIP2612Contract(tokenAddress?: string): Contract | null {
-  return useContract(tokenAddress, EIP_2612, false)
-}
-
-export function usePairContract(pairAddress?: string, withSignerIfPossible?: boolean): Contract | null {
-  return useContract(pairAddress, IUniswapV2PairABI, withSignerIfPossible)
-}
-
-export function useV2RouterContract(): Contract | null {
-  return useContract(V2_ROUTER_ADDRESS, IUniswapV2Router02ABI, true)
-}
-
-export function useInterfaceMulticall() {
-  return useContract<UniswapInterfaceMulticall>(MULTICALL_ADDRESSES, MulticallABI, false) as UniswapInterfaceMulticall
-}
-
-export function useMainnetInterfaceMulticall() {
-  return useMainnetContract<UniswapInterfaceMulticall>(
-    MULTICALL_ADDRESSES[ChainId.MAINNET],
-    MulticallABI
-  ) as UniswapInterfaceMulticall
-}
-
-export function useV3NFTPositionManagerContract(withSignerIfPossible?: boolean): NonfungiblePositionManager | null {
-  const { account, chainId } = useWeb3React()
-  const contract = useContract<NonfungiblePositionManager>(
-    NONFUNGIBLE_POSITION_MANAGER_ADDRESSES,
-    NFTPositionManagerABI,
-    withSignerIfPossible
+export function usePositionManagerAdepterContract(address: Address) {
+  const { chainId } = useActiveChainId()
+  const { data: signer } = useWalletClient()
+  return useMemo(
+    () => getPositionManagerAdapterContract(address, signer ?? undefined, chainId),
+    [signer, chainId, address],
   )
-  useEffect(() => {
-    if (contract && account) {
-      sendAnalyticsEvent(InterfaceEventName.WALLET_PROVIDER_USED, {
-        source: 'useV3NFTPositionManagerContract',
-        contract: {
-          name: 'V3NonfungiblePositionManager',
-          address: contract.address,
-          withSignerIfPossible,
-          chainId,
-        },
-      })
-    }
-  }, [account, chainId, contract, withSignerIfPossible])
-  return contract
+}
+
+export function useBWDneroFarmBoosterProxyFactoryContract() {
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getBWDneroFarmBoosterProxyFactoryContract(signer ?? undefined), [signer])
+}
+
+export function useBWDneroProxyContract(proxyContractAddress: Address) {
+  const { data: signer } = useWalletClient()
+  return useMemo(
+    () => proxyContractAddress && getBWDneroProxyContract(proxyContractAddress, signer ?? undefined),
+    [signer, proxyContractAddress],
+  )
+}
+
+export const useNonDneroVault = () => {
+  const { chainId } = useActiveChainId()
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getNonDneroVaultContract(signer ?? undefined, chainId), [signer, chainId])
+}
+
+export const useSIDContract = (address, chainId) => {
+  return useMemo(() => getSidContract(address, chainId), [address, chainId])
+}
+
+export const useUNSContract = (address, chainId, provider) => {
+  return useMemo(() => getUnsContract(address, chainId, provider), [chainId, address, provider])
+}
+
+export const useCrossFarmingProxy = (proxyContractAddress: Address) => {
+  const { chainId } = useActiveChainId()
+  const { data: signer } = useWalletClient()
+  return useMemo(
+    () => proxyContractAddress && getCrossFarmingProxyContract(proxyContractAddress, signer ?? undefined, chainId),
+    [proxyContractAddress, signer, chainId],
+  )
+}
+
+export const useStableSwapNativeHelperContract = () => {
+  const { chainId } = useActiveChainId()
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getStableSwapNativeHelperContract(signer ?? undefined, chainId), [signer, chainId])
+}
+
+export function useV3NFTPositionManagerContract() {
+  return useContract(addresses.nftPositionManager, nonfungiblePositionManagerABI)
+}
+
+export function useMasterchefV3() {
+  const { chainId } = useActiveChainId()
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getMasterChefV3Contract(signer ?? undefined, chainId), [signer, chainId])
+}
+
+export function useV3MigratorContract() {
+  const { chainId } = useActiveChainId()
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getV3MigratorContract(signer ?? undefined, chainId), [chainId, signer])
+}
+
+export const useTradingRewardContract = ({ chainId: chainId_ }: { chainId?: ChainId } = {}) => {
+  const { chainId } = useActiveChainId()
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getTradingRewardContract(signer ?? undefined, chainId_ ?? chainId), [signer, chainId_, chainId])
+}
+
+export const useV3AirdropContract = () => {
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getV3AirdropContract(signer ?? undefined), [signer])
+}
+
+export const useInfoStableSwapContract = (infoAddress?: Address) => {
+  return useContract(infoAddress, infoStableSwapABI)
+}
+
+export const useAffiliateProgramContract = ({ chainId: chainId_ }: { chainId?: ChainId } = {}) => {
+  const { chainId } = useActiveChainId()
+  const { data: signer } = useWalletClient()
+  return useMemo(
+    () => getAffiliateProgramContract(signer ?? undefined, chainId_ ?? chainId),
+    [signer, chainId_, chainId],
+  )
+}
+
+export const useTradingRewardTopTraderContract = ({ chainId: chainId_ }: { chainId?: ChainId } = {}) => {
+  const { chainId } = useActiveChainId()
+  const { data: signer } = useWalletClient()
+  return useMemo(
+    () => getTradingRewardTopTradesContract(signer ?? undefined, chainId_ ?? chainId),
+    [signer, chainId_, chainId],
+  )
+}
+
+export const useVWDneroContract = ({ chainId: chainId_ }: { chainId?: ChainId } = {}) => {
+  const { chainId } = useActiveChainId()
+  const { data: signer } = useWalletClient()
+  return useMemo(() => getVWDneroContract(signer ?? undefined, chainId_ ?? chainId), [signer, chainId_, chainId])
+}
+
+export const useRevenueSharingPoolContract = ({ chainId: chainId_ }: { chainId?: ChainId } = {}) => {
+  const { chainId } = useActiveChainId()
+  const { data: signer } = useWalletClient()
+  return useMemo(
+    () => getRevenueSharingPoolContract(signer ?? undefined, chainId_ ?? chainId),
+    [signer, chainId_, chainId],
+  )
+}
+
+export const useAnniversaryAchievementContract = ({ chainId: chainId_ }: { chainId?: ChainId } = {}) => {
+  const { chainId } = useActiveChainId()
+  const { data: signer } = useWalletClient()
+  return useMemo(
+    () => getAnniversaryAchievementContract(signer ?? undefined, chainId_ ?? chainId),
+    [signer, chainId_, chainId],
+  )
+}
+
+export const useFixedStakingContract = () => {
+  const { chainId } = useActiveChainId()
+
+  const { data: signer } = useWalletClient()
+
+  return useMemo(() => getFixedStakingContract(signer ?? undefined, chainId), [chainId, signer])
+}
+
+export const useVeWDneroContract = () => {
+  const { chainId } = useActiveChainId()
+
+  const { data: signer } = useWalletClient()
+
+  return useMemo(() => getVeWDneroContract(signer ?? undefined, chainId), [chainId, signer])
+}
+
+export const useGaugesVotingContract = () => {
+  const { chainId } = useActiveChainId()
+
+  const { data: signer } = useWalletClient()
+
+  return useMemo(() => getGaugesVotingContract(signer ?? undefined, chainId), [chainId, signer])
+}
+
+export const useCalcGaugesVotingContract = () => {
+  const { chainId } = useActiveChainId()
+
+  const { data: signer } = useWalletClient()
+
+  return useMemo(() => getCalcGaugesVotingContract(signer ?? undefined, chainId), [chainId, signer])
+}
+
+export const useRevenueSharingWDneroPoolContract = () => {
+  const { chainId } = useActiveChainId()
+  const { data: signer } = useWalletClient()
+
+  return useMemo(() => getRevenueSharingWDneroPoolContract(signer ?? undefined, chainId), [signer, chainId])
+}
+
+export const useRevenueSharingVeWDneroContract = () => {
+  const { chainId } = useActiveChainId()
+  const { data: signer } = useWalletClient()
+
+  return useMemo(() => getRevenueSharingVeWDneroContract(signer ?? undefined, chainId), [signer, chainId])
+}
+
+export const useRevenueSharingPoolGatewayContract = () => {
+  const { chainId } = useActiveChainId()
+  const { data: signer } = useWalletClient()
+
+  return useMemo(() => getRevenueSharingPoolGatewayContract(signer ?? undefined, chainId), [signer, chainId])
 }
