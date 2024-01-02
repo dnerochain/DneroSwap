@@ -1,64 +1,49 @@
-import { Interface } from '@ethersproject/abi'
-import { Currency, CurrencyAmount, V2_FACTORY_ADDRESSES } from '@uniswap/sdk-core'
-import IUniswapV2PairJSON from '@uniswap/v2-core/build/IUniswapV2Pair.json'
-import { computePairAddress, Pair } from '@uniswap/v2-sdk'
-import { useMultipleContractSingleData } from 'lib/hooks/multicall'
+import { Pair } from '@dneroswap/sdk'
 import { useMemo } from 'react'
+import { toV2LiquidityToken, useTrackedTokenPairs } from 'state/user/hooks'
+import { useTokenBalancesWithLoadingIndicator } from 'state/wallet/hooks'
+import { PairState, useV2Pairs } from './usePairs'
 
-const PAIR_INTERFACE = new Interface(IUniswapV2PairJSON.abi)
+export default function useV2PairsByAccount(account: string | undefined) {
+  // fetch the user's balances of all tracked V2 LP tokens
+  const trackedTokenPairs = useTrackedTokenPairs()
 
-export enum PairState {
-  LOADING,
-  NOT_EXISTS,
-  EXISTS,
-  INVALID,
-}
-
-export function useV2Pairs(currencies: [Currency | undefined, Currency | undefined][]): [PairState, Pair | null][] {
-  const tokens = useMemo(
-    () => currencies.map(([currencyA, currencyB]) => [currencyA?.wrapped, currencyB?.wrapped]),
-    [currencies]
+  const tokenPairsWithLiquidityTokens = useMemo(
+    () => trackedTokenPairs.map((tokens) => ({ liquidityToken: toV2LiquidityToken(tokens), tokens })),
+    [trackedTokenPairs],
+  )
+  const liquidityTokens = useMemo(
+    () => tokenPairsWithLiquidityTokens.map((tpwlt) => tpwlt.liquidityToken),
+    [tokenPairsWithLiquidityTokens],
+  )
+  const [v2PairsBalances, fetchingV2PairBalances] = useTokenBalancesWithLoadingIndicator(
+    account ?? undefined,
+    liquidityTokens,
   )
 
-  const pairAddresses = useMemo(
+  // fetch the reserves for all V2 pools in which the user has a balance
+  const liquidityTokensWithBalances = useMemo(
     () =>
-      tokens.map(([tokenA, tokenB]) => {
-        return tokenA &&
-          tokenB &&
-          tokenA.chainId === tokenB.chainId &&
-          !tokenA.equals(tokenB) &&
-          V2_FACTORY_ADDRESSES[tokenA.chainId]
-          ? computePairAddress({ factoryAddress: V2_FACTORY_ADDRESSES[tokenA.chainId], tokenA, tokenB })
-          : undefined
-      }),
-    [tokens]
+      tokenPairsWithLiquidityTokens.filter(({ liquidityToken }) =>
+        v2PairsBalances[liquidityToken.address]?.greaterThan('0'),
+      ),
+    [tokenPairsWithLiquidityTokens, v2PairsBalances],
   )
 
-  const results = useMultipleContractSingleData(pairAddresses, PAIR_INTERFACE, 'getReserves')
+  const v2Pairs = useV2Pairs(liquidityTokensWithBalances.map(({ tokens }) => tokens))
 
   return useMemo(() => {
-    return results.map((result, i) => {
-      const { result: reserves, loading } = result
-      const tokenA = tokens[i][0]
-      const tokenB = tokens[i][1]
+    const v2IsLoading =
+      fetchingV2PairBalances ||
+      v2Pairs?.length < liquidityTokensWithBalances.length ||
+      (v2Pairs?.length && v2Pairs.every(([pairState]) => pairState === PairState.LOADING))
+    const allV2PairsWithLiquidity: (Pair | null)[] = v2Pairs
+      ?.filter(([pairState, pair]) => pairState === PairState.EXISTS && Boolean(pair))
+      .map(([, pair]) => pair)
 
-      if (loading) return [PairState.LOADING, null]
-      if (!tokenA || !tokenB || tokenA.equals(tokenB)) return [PairState.INVALID, null]
-      if (!reserves) return [PairState.NOT_EXISTS, null]
-      const { reserve0, reserve1 } = reserves
-      const [token0, token1] = tokenA.sortsBefore(tokenB) ? [tokenA, tokenB] : [tokenB, tokenA]
-      return [
-        PairState.EXISTS,
-        new Pair(
-          CurrencyAmount.fromRawAmount(token0, reserve0.toString()),
-          CurrencyAmount.fromRawAmount(token1, reserve1.toString())
-        ),
-      ]
-    })
-  }, [results, tokens])
-}
-
-export function useV2Pair(tokenA?: Currency, tokenB?: Currency): [PairState, Pair | null] {
-  const inputs: [[Currency | undefined, Currency | undefined]] = useMemo(() => [[tokenA, tokenB]], [tokenA, tokenB])
-  return useV2Pairs(inputs)[0]
+    return {
+      data: allV2PairsWithLiquidity,
+      loading: v2IsLoading,
+    }
+  }, [fetchingV2PairBalances, liquidityTokensWithBalances.length, v2Pairs])
 }

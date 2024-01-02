@@ -1,74 +1,96 @@
-import { getVersionUpgrade, VersionUpgrade } from '@uniswap/token-lists'
-import { useWeb3React } from '@web3-react/core'
-import { DEFAULT_LIST_OF_LISTS, UNSUPPORTED_LIST_URLS } from 'constants/lists'
-import TokenSafetyLookupTable from 'constants/tokenSafetyLookup'
-import { useStateRehydrated } from 'hooks/useStateRehydrated'
-import useInterval from 'lib/hooks/useInterval'
-import ms from 'ms'
-import { useCallback, useEffect } from 'react'
-import { useAppDispatch, useAppSelector } from 'state/hooks'
+import { getVersionUpgrade, VersionUpgrade } from '@dneroswap/token-lists'
+import { acceptListUpdate, updateListVersion, useFetchListCallback } from '@dneroswap/token-lists/react'
+import { EXCHANGE_PAGE_PATHS } from 'config/constants/exchange'
+import { UNSUPPORTED_LIST_URLS } from 'config/constants/lists'
+import { usePublicClient } from 'wagmi'
+import { useActiveChainId } from 'hooks/useActiveChainId'
+import { useRouter } from 'next/router'
+import { useEffect, useMemo } from 'react'
 import { useAllLists } from 'state/lists/hooks'
-
-import { useFetchListCallback } from '../../hooks/useFetchListCallback'
-import useIsWindowVisible from '../../hooks/useIsWindowVisible'
-import { acceptListUpdate } from './actions'
+import useSWRImmutable from 'swr/immutable'
+import { useQuery } from '@tanstack/react-query'
+import { useActiveListUrls } from './hooks'
+import { useListState, useListStateReady, initialState } from './lists'
 
 export default function Updater(): null {
-  const { provider } = useWeb3React()
-  const dispatch = useAppDispatch()
-  const isWindowVisible = useIsWindowVisible()
+  const { chainId } = useActiveChainId()
+  const provider = usePublicClient({ chainId })
+
+  const [listState, dispatch] = useListState()
+  const router = useRouter()
+  const includeListUpdater = useMemo(() => {
+    return EXCHANGE_PAGE_PATHS.some((item) => {
+      return router.pathname.startsWith(item)
+    })
+  }, [router.pathname])
+
+  const isReady = useListStateReady()
 
   // get all loaded lists, and the active urls
   const lists = useAllLists()
-  const listsState = useAppSelector((state) => state.lists)
-  const rehydrated = useStateRehydrated()
+  const activeListUrls = useActiveListUrls()
 
   useEffect(() => {
-    if (rehydrated) TokenSafetyLookupTable.update(listsState)
-  }, [listsState, rehydrated])
+    if (isReady) {
+      dispatch(updateListVersion())
+    }
+  }, [dispatch, isReady])
 
-  const fetchList = useFetchListCallback()
-  const fetchAllListsCallback = useCallback(() => {
-    if (!isWindowVisible) return
-    DEFAULT_LIST_OF_LISTS.forEach((url) => {
-      // Skip validation on unsupported lists
-      const isUnsupportedList = UNSUPPORTED_LIST_URLS.includes(url)
-      fetchList(url, isUnsupportedList).catch((error) => console.debug('interval list fetching error', error))
-    })
-  }, [fetchList, isWindowVisible])
+  const fetchList = useFetchListCallback(dispatch)
 
-  // fetch all lists every 10 minutes, but only after we initialize provider
-  useInterval(fetchAllListsCallback, provider ? ms(`10m`) : null)
-
-  useEffect(() => {
-    if (!rehydrated) return // loaded lists will not be available until state is rehydrated
-
-    // whenever a list is not loaded and not loading, try again to load it
+  // whenever a list is not loaded and not loading, try again to load it
+  useSWRImmutable(isReady && ['first-fetch-token-list', lists], () => {
     Object.keys(lists).forEach((listUrl) => {
       const list = lists[listUrl]
       if (!list.current && !list.loadingRequestId && !list.error) {
         fetchList(listUrl).catch((error) => console.debug('list added fetching error', error))
       }
     })
-    UNSUPPORTED_LIST_URLS.forEach((listUrl) => {
-      const list = lists[listUrl]
-      if (!list || (!list.current && !list.loadingRequestId && !list.error)) {
-        fetchList(listUrl, /* isUnsupportedList= */ true).catch((error) =>
-          console.debug('list added fetching error', error)
-        )
-      }
-    })
-  }, [dispatch, fetchList, lists, rehydrated])
+  })
 
-  // automatically update lists for every version update
+  useQuery(
+    ['token-list'],
+    async () => {
+      return Promise.all(
+        Object.keys(lists).map((url) =>
+          fetchList(url).catch((error) => console.debug('interval list fetching error', error)),
+        ),
+      )
+    },
+    {
+      enabled: Boolean(includeListUpdater && isReady && listState !== initialState),
+      refetchInterval: 1000 * 60 * 10,
+      staleTime: 1000 * 60 * 10,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+    },
+  )
+
+  // if any lists from unsupported lists are loaded, check them too (in case new updates since last visit)
   useEffect(() => {
+    if (isReady) {
+      Object.keys(UNSUPPORTED_LIST_URLS).forEach((listUrl) => {
+        const list = lists[listUrl]
+        if (!list || (!list.current && !list.loadingRequestId && !list.error)) {
+          fetchList(listUrl).catch((error) => console.debug('list added fetching error', error))
+        }
+      })
+    }
+  }, [fetchList, provider, lists, isReady])
+
+  // automatically update lists if versions are minor/patch
+  useEffect(() => {
+    if (!isReady) return
     Object.keys(lists).forEach((listUrl) => {
       const list = lists[listUrl]
       if (list.current && list.pendingUpdate) {
         const bump = getVersionUpgrade(list.current.version, list.pendingUpdate.version)
+        // eslint-disable-next-line default-case
         switch (bump) {
           case VersionUpgrade.NONE:
             throw new Error('unexpected no version bump')
+          // update any active or inactive lists
           case VersionUpgrade.PATCH:
           case VersionUpgrade.MINOR:
           case VersionUpgrade.MAJOR:
@@ -76,7 +98,7 @@ export default function Updater(): null {
         }
       }
     })
-  }, [dispatch, lists])
+  }, [dispatch, lists, activeListUrls, isReady])
 
   return null
 }

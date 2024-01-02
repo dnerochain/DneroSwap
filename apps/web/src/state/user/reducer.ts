@@ -1,40 +1,46 @@
-import { createSlice } from '@reduxjs/toolkit'
-import { getRecentConnectionMeta, setRecentConnectionMeta } from 'connection/meta'
-import { RecentConnectionMeta } from 'connection/types'
+import { createReducer } from '@reduxjs/toolkit'
+import { SerializedWrappedToken } from '@dneroswap/token-lists'
+import omitBy from 'lodash/omitBy'
+import { DEFAULT_DEADLINE_FROM_NOW } from '../../config/constants'
+import { updateVersion } from '../global/actions'
+import {
+  addSerializedPair,
+  addSerializedToken,
+  addWatchlistPool,
+  addWatchlistToken,
+  FarmStakedOnly,
+  removeSerializedPair,
+  removeSerializedToken,
+  SerializedPair,
+  updateGasPrice,
+  updateUserDeadline,
+  updateUserFarmStakedOnly,
+  updateUserFarmsViewMode,
+  updateUserPoolStakedOnly,
+  updateUserPoolsViewMode,
+  ViewMode,
+  updateUserPredictionAcceptedRisk,
+  updateUserPredictionChartDisclaimerShow,
+  updateUserPredictionChainlinkChartDisclaimerShow,
+  updateUserUsernameVisibility,
+  setIsExchangeChartDisplayed,
+  setSubgraphHealthIndicatorDisplayed,
+  updateUserLimitOrderAcceptedWarning,
+} from './actions'
+import { GAS_PRICE_GWEI } from '../types'
 
-import { SupportedLocale } from '../../constants/locales'
-import { DEFAULT_DEADLINE_FROM_NOW } from '../../constants/misc'
-import { RouterPreference } from '../../state/routing/types'
-import { SerializedPair, SerializedToken, SlippageTolerance } from './types'
-
-const currentTimestamp = () => new Date().getTime()
+const currentTimestamp = () => Date.now()
 
 export interface UserState {
-  recentConnectionMeta?: RecentConnectionMeta
-
   // the timestamp of the last updateVersion action
   lastUpdateVersionTimestamp?: number
-
-  userLocale: SupportedLocale | null
-
-  // which router should be used to calculate trades
-  userRouterPreference: RouterPreference
-
-  // hides closed (inactive) positions across the app
-  userHideClosedPositions: boolean
-
-  // user defined slippage tolerance in bips, used in all txns
-  userSlippageTolerance: number | SlippageTolerance.Auto
-
-  // flag to indicate whether the user has been migrated from the old slippage tolerance values
-  userSlippageToleranceHasBeenMigratedToAuto: boolean
 
   // deadline set by user in minutes, used in all txns
   userDeadline: number
 
   tokens: {
     [chainId: number]: {
-      [address: string]: SerializedToken
+      [address: string]: SerializedWrappedToken
     }
   }
 
@@ -44,13 +50,21 @@ export interface UserState {
       [key: string]: SerializedPair
     }
   }
-
-  timestamp: number
-  hideAppPromoBanner: boolean
-  // undefined means has not gone through A/B split yet
-  showSurveyPopup?: boolean
-
-  originCountry?: string
+  isExchangeChartDisplayed: boolean
+  isSubgraphHealthIndicatorDisplayed: boolean
+  userFarmStakedOnly: FarmStakedOnly
+  userPoolStakedOnly: boolean
+  userPoolsViewMode: ViewMode
+  userFarmsViewMode: ViewMode
+  userPredictionAcceptedRisk: boolean
+  userLimitOrderAcceptedWarning: boolean
+  userPredictionChartDisclaimerShow: boolean
+  userPredictionChainlinkChartDisclaimerShow: boolean
+  userUsernameVisibility: boolean
+  gasPrice: string
+  watchlistTokens: string[]
+  watchlistPools: string[]
+  hideTimestampPhishingWarningBanner: number
 }
 
 function pairKey(token0Address: string, token1Address: string) {
@@ -58,100 +72,134 @@ function pairKey(token0Address: string, token1Address: string) {
 }
 
 export const initialState: UserState = {
-  recentConnectionMeta: getRecentConnectionMeta(),
-  userLocale: null,
-  userRouterPreference: RouterPreference.X,
-  userHideClosedPositions: false,
-  userSlippageTolerance: SlippageTolerance.Auto,
-  userSlippageToleranceHasBeenMigratedToAuto: true,
   userDeadline: DEFAULT_DEADLINE_FROM_NOW,
   tokens: {},
   pairs: {},
-  timestamp: currentTimestamp(),
-  hideAppPromoBanner: false,
-  showSurveyPopup: undefined,
-  originCountry: undefined,
+  isExchangeChartDisplayed: true,
+  isSubgraphHealthIndicatorDisplayed: false,
+  userFarmStakedOnly: FarmStakedOnly.ON_FINISHED,
+  userPoolStakedOnly: false,
+  userPoolsViewMode: ViewMode.TABLE,
+  userFarmsViewMode: ViewMode.TABLE,
+  userPredictionAcceptedRisk: false,
+  userLimitOrderAcceptedWarning: false,
+  userPredictionChartDisclaimerShow: true,
+  userPredictionChainlinkChartDisclaimerShow: true,
+  userUsernameVisibility: false,
+  gasPrice: GAS_PRICE_GWEI.rpcDefault,
+  watchlistTokens: [],
+  watchlistPools: [],
+  hideTimestampPhishingWarningBanner: null,
 }
 
-const userSlice = createSlice({
-  name: 'user',
-  initialState,
-  reducers: {
-    updateRecentConnectionMeta(state, { payload: meta }: { payload: RecentConnectionMeta }) {
-      setRecentConnectionMeta(meta)
-      state.recentConnectionMeta = meta
-    },
-    setRecentConnectionDisconnected(state) {
-      if (!state.recentConnectionMeta) return
+export default createReducer(initialState, (builder) =>
+  builder
+    .addCase(updateVersion, (state) => {
+      // slippage is'nt being tracked in local storage, reset to default
+      // noinspection SuspiciousTypeOfGuard
 
-      const disconnectedMeta = { ...state.recentConnectionMeta, disconnected: true }
-      setRecentConnectionMeta(disconnectedMeta)
-      state.recentConnectionMeta = disconnectedMeta
-    },
-    clearRecentConnectionMeta(state) {
-      setRecentConnectionMeta(undefined)
-      state.recentConnectionMeta = undefined
-    },
-    updateUserLocale(state, action) {
-      if (action.payload.userLocale !== state.userLocale) {
-        state.userLocale = action.payload.userLocale
-        state.timestamp = currentTimestamp()
+      // deadline isnt being tracked in local storage, reset to default
+      // noinspection SuspiciousTypeOfGuard
+      if (typeof state.userDeadline !== 'number') {
+        state.userDeadline = DEFAULT_DEADLINE_FROM_NOW
       }
-    },
-    updateUserSlippageTolerance(state, action) {
-      state.userSlippageTolerance = action.payload.userSlippageTolerance
-      state.timestamp = currentTimestamp()
-    },
-    updateUserDeadline(state, action) {
+
+      state.lastUpdateVersionTimestamp = currentTimestamp()
+    })
+    .addCase(updateUserDeadline, (state, action) => {
       state.userDeadline = action.payload.userDeadline
-      state.timestamp = currentTimestamp()
-    },
-    updateUserRouterPreference(state, action) {
-      state.userRouterPreference = action.payload.userRouterPreference
-    },
-    updateHideClosedPositions(state, action) {
-      state.userHideClosedPositions = action.payload.userHideClosedPositions
-    },
-    updateHideAppPromoBanner(state, action) {
-      state.hideAppPromoBanner = action.payload.hideAppPromoBanner
-    },
-    addSerializedToken(state, { payload: { serializedToken } }) {
+    })
+    .addCase(addSerializedToken, (state, { payload: { serializedToken } }) => {
       if (!state.tokens) {
         state.tokens = {}
       }
       state.tokens[serializedToken.chainId] = state.tokens[serializedToken.chainId] || {}
       state.tokens[serializedToken.chainId][serializedToken.address] = serializedToken
-      state.timestamp = currentTimestamp()
-    },
-    addSerializedPair(state, { payload: { serializedPair } }) {
+    })
+    .addCase(removeSerializedToken, (state, { payload: { address, chainId } }) => {
+      if (!state.tokens) {
+        state.tokens = {}
+      }
+      if (state.tokens[chainId]) {
+        state.tokens[chainId] = omitBy(state.tokens[chainId], (value, key) => key === address)
+      } else {
+        state.tokens[chainId] = {}
+      }
+    })
+    .addCase(addSerializedPair, (state, { payload: { serializedPair } }) => {
       if (
         serializedPair.token0.chainId === serializedPair.token1.chainId &&
         serializedPair.token0.address !== serializedPair.token1.address
       ) {
-        const chainId = serializedPair.token0.chainId
+        const { chainId } = serializedPair.token0
         state.pairs[chainId] = state.pairs[chainId] || {}
         state.pairs[chainId][pairKey(serializedPair.token0.address, serializedPair.token1.address)] = serializedPair
       }
-      state.timestamp = currentTimestamp()
-    },
-    setOriginCountry(state, { payload: country }) {
-      state.originCountry = country
-    },
-  },
-})
-
-export const {
-  updateRecentConnectionMeta,
-  setRecentConnectionDisconnected,
-  clearRecentConnectionMeta,
-  addSerializedPair,
-  addSerializedToken,
-  setOriginCountry,
-  updateHideClosedPositions,
-  updateUserRouterPreference,
-  updateUserDeadline,
-  updateUserLocale,
-  updateUserSlippageTolerance,
-  updateHideAppPromoBanner,
-} = userSlice.actions
-export default userSlice.reducer
+    })
+    .addCase(removeSerializedPair, (state, { payload: { chainId, tokenAAddress, tokenBAddress } }) => {
+      if (state.pairs[chainId]) {
+        const tokenAToB = pairKey(tokenAAddress, tokenBAddress)
+        const tokenBToA = pairKey(tokenBAddress, tokenAAddress)
+        // just delete both keys if either exists
+        state.pairs[chainId] = omitBy(state.pairs[chainId], (value, key) => key === tokenAToB || key === tokenBToA)
+      }
+    })
+    .addCase(updateUserFarmStakedOnly, (state, { payload: { userFarmStakedOnly } }) => {
+      state.userFarmStakedOnly = userFarmStakedOnly
+    })
+    .addCase(updateUserPoolStakedOnly, (state, { payload: { userPoolStakedOnly } }) => {
+      state.userPoolStakedOnly = userPoolStakedOnly
+    })
+    .addCase(updateUserPoolsViewMode, (state, { payload: { userPoolsViewMode } }) => {
+      state.userPoolsViewMode = userPoolsViewMode
+    })
+    .addCase(updateUserFarmsViewMode, (state, { payload: { userFarmsViewMode } }) => {
+      state.userFarmsViewMode = userFarmsViewMode
+    })
+    .addCase(updateUserPredictionAcceptedRisk, (state, { payload: { userAcceptedRisk } }) => {
+      state.userPredictionAcceptedRisk = userAcceptedRisk
+    })
+    .addCase(updateUserLimitOrderAcceptedWarning, (state, { payload: { userAcceptedRisk } }) => {
+      state.userLimitOrderAcceptedWarning = userAcceptedRisk
+    })
+    .addCase(updateUserPredictionChartDisclaimerShow, (state, { payload: { userShowDisclaimer } }) => {
+      state.userPredictionChartDisclaimerShow = userShowDisclaimer
+    })
+    .addCase(updateUserPredictionChainlinkChartDisclaimerShow, (state, { payload: { userShowDisclaimer } }) => {
+      state.userPredictionChainlinkChartDisclaimerShow = userShowDisclaimer
+    })
+    .addCase(updateUserUsernameVisibility, (state, { payload: { userUsernameVisibility } }) => {
+      state.userUsernameVisibility = userUsernameVisibility
+    })
+    .addCase(updateGasPrice, (state, action) => {
+      state.gasPrice = action.payload.gasPrice
+    })
+    .addCase(addWatchlistToken, (state, { payload: { address } }) => {
+      // state.watchlistTokens can be undefined for pre-loaded localstorage user state
+      const tokenWatchlist = state.watchlistTokens ?? []
+      if (!tokenWatchlist.includes(address)) {
+        state.watchlistTokens = [...tokenWatchlist, address]
+      } else {
+        // Remove token from watchlist
+        const newTokens = state.watchlistTokens.filter((x) => x !== address)
+        state.watchlistTokens = newTokens
+      }
+    })
+    .addCase(addWatchlistPool, (state, { payload: { address } }) => {
+      // state.watchlistPools can be undefined for pre-loaded localstorage user state
+      const poolsWatchlist = state.watchlistPools ?? []
+      if (!poolsWatchlist.includes(address)) {
+        state.watchlistPools = [...poolsWatchlist, address]
+      } else {
+        // Remove pool from watchlist
+        const newPools = state.watchlistPools.filter((x) => x !== address)
+        state.watchlistPools = newPools
+      }
+    })
+    .addCase(setIsExchangeChartDisplayed, (state, { payload }) => {
+      state.isExchangeChartDisplayed = payload
+    })
+    .addCase(setSubgraphHealthIndicatorDisplayed, (state, { payload }) => {
+      state.isSubgraphHealthIndicatorDisplayed = payload
+    }),
+)
