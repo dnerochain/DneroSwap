@@ -1,5 +1,5 @@
 import { ChainId } from '@dneroswap/chains'
-import FarmsDneroPriceHelper from './56'
+import FarmsDneroPriceHelper from './5647'
 import FarmsDneroTestnetPriceHelper from './97'
 import FarmsEthereumPriceHelper from './1'
 import FarmsGoerliPriceHelper from './5'

@@ -1,7 +1,7 @@
 export enum ChainId {
   ETHEREUM = 1,
   GOERLI = 5,
-  DNERO = 56,
+  DNERO = 5647,
   DNERO_TESTNET = 97,
   ZKSYNC_TESTNET = 280,
   ZKSYNC = 324,

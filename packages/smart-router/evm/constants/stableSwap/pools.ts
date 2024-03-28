@@ -1,7 +1,7 @@
 import { ChainId } from '@dneroswap/chains'
 
 import { StableSwapPool } from './types'
-import { pools as dneroPools } from './56'
+import { pools as dneroPools } from './5647'
 import { pools as dneroTestnetPools } from './97'
 
 export type StableSwapPoolMap<TChainId extends number> = {

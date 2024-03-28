@@ -8,10 +8,10 @@ describe('Utils', () => {
 
   describe('#order', () => {
     it('order tokens correctly', () => {
-      const tokenA = new Token(56, ADDRESS_ONE, 18, 'A')
-      const tokenB = new Token(56, ADDRESS_TWO, 18, 'B')
-      const tokenC = new Token(56, ADDRESS_THREE, 18, 'C')
-      const tokenD = new Token(56, ADDRESS_FOUR, 18, 'D')
+      const tokenA = new Token(5647, ADDRESS_ONE, 18, 'A')
+      const tokenB = new Token(5647, ADDRESS_TWO, 18, 'B')
+      const tokenC = new Token(5647, ADDRESS_THREE, 18, 'C')
+      const tokenD = new Token(5647, ADDRESS_FOUR, 18, 'D')
 
       const tokenComparator = getTokenComparator({
         [tokenA.address]: CurrencyAmount.fromRawAmount(tokenA, 4),

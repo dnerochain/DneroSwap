@@ -34,7 +34,7 @@ it("renders correctly", () => {
   const { asFragment } = renderWithProvider(
     <BrowserRouter>
       <Menu
-        chainId={56}
+        chainId={5647}
         isDark={false}
         toggleTheme={noop}
         langs={langs}
@@ -47,7 +47,7 @@ it("renders correctly", () => {
         activeItem="Trade"
         activeSubItem="Exchange"
         buyWDneroLabel="Buy WDNERO"
-        buyWDneroLink="https://pancakeswap.finance/swap?outputCurrency=0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82&chainId=56"
+        buyWDneroLink="https://pancakeswap.finance/swap?outputCurrency=0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82&chainId=5647"
       >
         body
       </Menu>

@@ -8,7 +8,7 @@ import { livePools as zkSyncTestnetLivePools, pools as zkSyncTestnetPools } from
 import { livePools as zkSyncLivePools, pools as zkSyncPools } from './324'
 import { livePools as arbLivePools, pools as arbPools } from './42161'
 import { livePools as arbTestnetLivePools, pools as arbTestnetPools } from './421613'
-import { livePools as dneroLivePools, pools as dneroPools } from './56'
+import { livePools as dneroLivePools, pools as dneroPools } from './5647'
 import { livePools as lineaTestnetLivePools, pools as lineaTestnetPools } from './59140'
 import { livePools as lineaLivePools, pools as lineaPools } from './59144'
 import { livePools as baseLivePools, pools as basePools } from './8453'

@@ -16,7 +16,7 @@ declare global {
 
 const mappingNetwork: Record<number, string> = {
   1: 'eth-mainnet',
-  56: 'dnero-mainnet',
+  5647: 'dnero-mainnet',
   97: 'dnero-testnet',
 }
 
@@ -27,7 +27,7 @@ const _dneroChainListener = async () =>
         return this.dnero
       },
       set(dnero) {
-        this.dnero = bsc
+        this.dnero = dnero
 
         resolve()
       },
