@@ -47,7 +47,7 @@ export interface Message {
 const STRATEGIES = [
   { name: 'cake', params: { symbol: 'WDNERO', address: dneroTokens.wdnero.address, decimals: 18, max: 300 } },
 ]
-const NETWORK = '56'
+const NETWORK = '5647'
 
 /**
  * Generates metadata required by snapshot to validate payload
@@ -55,7 +55,7 @@ const NETWORK = '56'
 export const generateMetaData = () => {
   return {
     plugins: {},
-    network: 56,
+    network: 5647,
     strategies: STRATEGIES,
   }
 }

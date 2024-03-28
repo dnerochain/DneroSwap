@@ -6,7 +6,7 @@ import { WrappedTokenInfo } from '@dneroswap/token-lists'
 import { ChainId } from '@dneroswap/chains'
 import { useActiveChainId } from 'hooks/useActiveChainId'
 import ETH_WARNING_LIST from './1'
-import DNERO_WARNING_LIST from './56'
+import DNERO_WARNING_LIST from './5647'
 import Acknowledgement from './Acknowledgement'
 
 const StyledModalContainer = styled(ModalContainer)`

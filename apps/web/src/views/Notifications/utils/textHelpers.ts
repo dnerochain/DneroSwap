@@ -45,7 +45,7 @@ export const extractPercentageFromString = (inputString: string): number | null 
 export const extractTokensFromAPRString = (aprString: string): { token1: string; token2: string; chainId: number } => {
   const regex = /-([^:]+):([^:]+):(\d+)/
   const match = aprString.match(regex)
-  if (!match) return { token1: '', token2: '', chainId: 56 }
+  if (!match) return { token1: '', token2: '', chainId: 5647 }
   const token1 = match[1]
   const token2 = match[2]
   const chain = parseInt(match[3], 10)

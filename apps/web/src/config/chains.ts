@@ -41,11 +41,11 @@ const dnero = {
     ...dnero_.rpcUrls,
     public: {
       ...dnero_.rpcUrls.public,
-      http: ['https://dnero-dataseed.binance.org/'],
+      http: ['https://eth-rpc-api.dnerochain.xyz/rpc/'],
     },
     default: {
       ...dnero_.rpcUrls.default,
-      http: ['https://dnero-dataseed.binance.org/'],
+      http: ['https://eth-rpc-api.dnerochain.xyz/rpc/'],
     },
   },
 } satisfies Chain

@@ -13,7 +13,7 @@ import { useIsMMSupportChain } from './useIsMMSupportChain'
 
 const QUOTING_WHITE_LIST = {
   1: DNEROSWAP_ETH_MM,
-  56: DNEROSWAP_DNERO_MM,
+  5647: DNEROSWAP_DNERO_MM,
 }
 
 export const useTokenList = (url?: string): Record<string, string> => {

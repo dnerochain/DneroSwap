@@ -1,12 +1,12 @@
 import BigNumber from 'bignumber.js'
-import lpAprs from 'config/constants/lpAprs/56.json'
+import lpAprs from 'config/constants/lpAprs/5647.json'
 import { getPoolApr, getFarmApr } from 'utils/apr'
 import { BIG_TEN, BIG_ZERO } from '@dneroswap/utils/bigNumber'
 import { ChainId } from '@dneroswap/chains'
 import { vi } from 'vitest'
 
-vi.mock('../../config/constants/lpAprs/56.json', async () => {
-  const actual = await vi.importActual('../../config/constants/lpAprs/56.json')
+vi.mock('../../config/constants/lpAprs/5647.json', async () => {
+  const actual = await vi.importActual('../../config/constants/lpAprs/5647.json')
   // @ts-ignore
   return {
     default: {

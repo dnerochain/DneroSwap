@@ -13,7 +13,7 @@ function getSidAddress(networkId) {
   if ([1, 3, 4, 5].includes(networkId)) {
     return '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e'
   }
-  if ([56].includes(networkId)) {
+  if ([5647].includes(networkId)) {
     return '0x08CEd32a7f3eeC915Ba84415e9C07a7286977956'
   }
   if ([421613].includes(networkId)) {

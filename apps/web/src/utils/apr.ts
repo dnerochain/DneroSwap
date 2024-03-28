@@ -1,7 +1,7 @@
 import BigNumber from 'bignumber.js'
 import { ChainId } from '@dneroswap/chains'
 import { BLOCKS_PER_YEAR } from 'config'
-import lpAprs56 from 'config/constants/lpAprs/56.json'
+import lpAprs56 from 'config/constants/lpAprs/5647.json'
 import lpAprs1 from 'config/constants/lpAprs/1.json'
 
 const getLpApr = (chainId?: number) => {
