@@ -83,7 +83,7 @@ Cypress.Commands.overwrite('visit', (original, url, options) => {
         options.onBeforeLoad(win)
       }
       win.localStorage.clear()
-      const provider = new JsonRpcProvider('https://dnero-dataseed.binance.org/', 56)
+      const provider = new JsonRpcProvider('https://eth-rpc-api.dnerochain.xyz/rpc/', 56)
       const signer = new Wallet(TEST_PRIVATE_KEY, provider)
       // eslint-disable-next-line no-param-reassign
       win.ethereum = new CustomizedBridge(signer, provider)
