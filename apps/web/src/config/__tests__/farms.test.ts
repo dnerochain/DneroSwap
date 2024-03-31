@@ -1,13 +1,13 @@
 /* eslint-disable address/addr-type */
 import { SerializedFarm } from '@dneroswap/farms'
 import farms1 from '@dneroswap/farms/constants/eth'
-import farms56 from '@dneroswap/farms/constants/dnero'
+import farms5647 from '@dneroswap/farms/constants/dnero'
 import { Native } from '@dneroswap/sdk'
 import { getLpContract } from 'utils/contractHelpers'
 import { describe, it } from 'vitest'
 
 // Test only against the last 10 farms, for performance concern
-const farmsToTest: [number, SerializedFarm, number][] = farms56
+const farmsToTest: [number, SerializedFarm, number][] = farms5647
   .filter((farm) => farm.pid !== 0 && farm.pid !== null)
   .filter((farm) => !(farm as any).stableSwapAddress)
   .slice(0, 10)
@@ -16,7 +16,7 @@ const farmsToTest: [number, SerializedFarm, number][] = farms56
 const farms1ToTest: [number, SerializedFarm, number][] = farms1.slice(0, 10).map((farm) => [farm.pid, farm, 1])
 
 const getDuplicates = (key: 'pid' | 'lpAddress') => {
-  const farms = [...farms56, ...farms1]
+  const farms = [...farms5647, ...farms1]
   const keys = farms.map((farm) => farm[key])
   return keys.filter((data) => keys.indexOf(data) !== keys.lastIndexOf(data))
 }
