@@ -11,12 +11,12 @@ import { farmsV3 as opDNEROTestnetFarms } from '@dneroswap/farms/constants/opDne
 import { farmsV3 as zkEvmFarm } from '@dneroswap/farms/constants/polygonZkEVM'
 import { farmsV3 as zkSyncFarm } from '@dneroswap/farms/constants/zkSync'
 import { ComputedFarmConfigV3, FarmV3SupportedChainId } from '@dneroswap/farms/src'
-import { tradingRewardV3Pair as tradingRewardV3Pair56 } from './5647'
+import { tradingRewardV3Pair as tradingRewardV3Pair5647 } from './5647'
 
 export const tradingRewardPairConfigChainMap: Record<FarmV3SupportedChainId, ComputedFarmConfigV3[]> = {
   [ChainId.ETHEREUM]: ethFarm,
   [ChainId.GOERLI]: farm5,
-  [ChainId.DNERO]: [...dneroFarm, ...tradingRewardV3Pair56],
+  [ChainId.DNERO]: [...dneroFarm, ...tradingRewardV3Pair5647],
   [ChainId.DNERO_TESTNET]: farm97,
   [ChainId.POLYGON_ZKEVM]: zkEvmFarm,
   [ChainId.POLYGON_ZKEVM_TESTNET]: [],
