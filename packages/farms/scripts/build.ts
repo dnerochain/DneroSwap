@@ -10,7 +10,7 @@ import dneroFarms from '../constants/dnero'
 import lpHelpers1 from '../constants/priceHelperLps/1'
 import lpHelpers5 from '../constants/priceHelperLps/5'
 import lpHelpers97 from '../constants/priceHelperLps/97'
-import lpHelpers56 from '../constants/priceHelperLps/5647'
+import lpHelpers5647 from '../constants/priceHelperLps/5647'
 
 const chains = [
   [1, ethFarms, lpHelpers1],
