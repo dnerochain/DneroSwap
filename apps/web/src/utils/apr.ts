@@ -1,13 +1,13 @@
 import BigNumber from 'bignumber.js'
 import { ChainId } from '@dneroswap/chains'
 import { BLOCKS_PER_YEAR } from 'config'
-import lpAprs56 from 'config/constants/lpAprs/5647.json'
+import lpAprs5647 from 'config/constants/lpAprs/5647.json'
 import lpAprs1 from 'config/constants/lpAprs/1.json'
 
 const getLpApr = (chainId?: number) => {
   switch (chainId) {
     case ChainId.DNERO:
-      return lpAprs56
+      return lpAprs5647
     case ChainId.ETHEREUM:
       return lpAprs1
     default:
