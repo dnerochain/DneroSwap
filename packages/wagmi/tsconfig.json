@@ -1,6 +1,0 @@
-{
-  "extends": "@dneroswap/tsconfig/react-library.json",
-  "compilerOptions": {
-    "target": "ES2015"
-  }
-}
